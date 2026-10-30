@@ -1,0 +1,42 @@
+# Full stack:  docker compose up --build
+#   Viewer      http://localhost:8080
+#   API docs    http://localhost:8000/docs
+#   Orthanc     http://localhost:8042   (orthanc / orthanc - demo credentials only)
+#   DICOM C-STORE to AET MEDIMG on localhost:4242
+name: medimg
+
+services:
+  orthanc:
+    image: jodogne/orthanc-plugins:1.12.5
+    command: /etc/orthanc/orthanc.json
+    volumes:
+      - ./services/orthanc/orthanc.json:/etc/orthanc/orthanc.json:ro
+      - orthanc-db:/var/lib/orthanc/db
+    ports: ["8042:8042", "4242:4242"]
+    restart: unless-stopped
+
+  inference:
+    build: { context: ., dockerfile: services/inference/Dockerfile }
+    environment:
+      ORTHANC_URL: http://orthanc:8042
+      ORTHANC_USER: orthanc
+      ORTHANC_PASSWORD: orthanc
+      MODEL_PATH: /models/classifier.pt
+      CALIBRATION_PATH: /models/calibration.json
+      CORS_ORIGINS: http://localhost:8080,http://localhost:5173
+    volumes:
+      - ./models:/models:ro
+      - app-data:/data
+    ports: ["8000:8000"]
+    depends_on: [orthanc]
+    restart: unless-stopped
+
+  web:
+    build: { context: ./web }
+    ports: ["8080:80"]
+    depends_on: [inference]
+    restart: unless-stopped
+
+volumes:
+  orthanc-db:
+  app-data:

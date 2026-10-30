@@ -1,0 +1,14 @@
+{
+  "Name": "MEDIMG-PACS",
+  "DicomAet": "MEDIMG",
+  "DicomPort": 4242,
+  "HttpPort": 8042,
+  "StorageDirectory": "/var/lib/orthanc/db",
+  "IndexDirectory": "/var/lib/orthanc/db",
+  "RemoteAccessAllowed": true,
+  "AuthenticationEnabled": true,
+  "RegisteredUsers": { "orthanc": "orthanc" },
+  "Plugins": ["/usr/share/orthanc/plugins"],
+  "DicomWeb": { "Enable": true, "Root": "/dicom-web/" },
+  "StableAge": 5
+}
