@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 
 import numpy as np
 import torch
@@ -60,11 +61,11 @@ def main() -> None:
     root.mkdir(parents=True, exist_ok=True)
 
     common = dict(root_dir=str(root), task=sp["task"], download=not (root / sp["task"]).exists(),
-                  val_frac=0.2, seed=p["seed"], cache_rate=1.0, num_workers=4)
+                  val_frac=0.2, seed=p["seed"], cache_rate=sp["cache_rate"], num_workers=sp["num_workers"])
     train_ds = DecathlonDataset(section="training", transform=transforms(sp, True), **common)
     val_ds = DecathlonDataset(section="validation", transform=transforms(sp, False), **{**common, "download": False})
-    train_dl = DataLoader(train_ds, batch_size=sp["batch_size"], shuffle=True, num_workers=2)
-    val_dl = DataLoader(val_ds, batch_size=1, num_workers=2)
+    train_dl = DataLoader(train_ds, batch_size=sp["batch_size"], shuffle=True, num_workers=sp["num_workers"])
+    val_dl = DataLoader(val_ds, batch_size=1, num_workers=sp["num_workers"])
 
     model = build_model().to(device)
     loss_fn = DiceCELoss(to_onehot_y=True, softmax=True)
@@ -85,7 +86,7 @@ def main() -> None:
     ckpt.parent.mkdir(exist_ok=True)
     for epoch in range(sp["max_epochs"]):
         model.train()
-        epoch_loss = 0.0
+        epoch_loss, t0 = 0.0, time.time()
         for batch in train_dl:
             x, y = batch["image"].to(device), batch["label"].to(device)
             optimizer.zero_grad(set_to_none=True)
@@ -96,7 +97,7 @@ def main() -> None:
             scaler.update()
             epoch_loss += loss.item()
         scheduler.step()
-        rec = {"epoch": epoch, "train_loss": epoch_loss / len(train_dl)}
+        rec = {"epoch": epoch, "train_loss": epoch_loss / len(train_dl), "epoch_sec": round(time.time() - t0, 1)}
 
         if (epoch + 1) % sp["val_interval"] == 0:
             model.eval()

@@ -35,3 +35,5 @@ segmentation:
   val_interval: 5
   lr: 1.0e-4
   amp: true
+  cache_rate: 0.5                       # fraction of preprocessed volumes kept in RAM (1.0 needs ~3.5 GB)
+  num_workers: 2
