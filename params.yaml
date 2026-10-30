@@ -1,0 +1,37 @@
+# Single source of truth for every DVC stage. Change a value -> `dvc repro` reruns only what depends on it.
+seed: 42
+
+data:
+  raw_dir: data/raw/rsna                # contains stage_2_train_images/ + stage_2_train_labels.csv + stage_2_detailed_class_info.csv
+  processed_dir: data/processed/rsna
+  cache_size: 512                       # images are cached as 512x512 PNG (originals are 1024x1024)
+  val_frac: 0.15
+  test_frac: 0.15
+
+classifier:
+  arch: densenet121                     # densenet121 | efficientnet_b0
+  img_size: 384
+  batch_size: 16                        # 16 fits a Kaggle T4; use 6 on a 4 GB GTX 1650
+  epochs: 12
+  lr: 3.0e-4
+  weight_decay: 1.0e-4
+  num_workers: 4
+  early_stop_patience: 3
+  amp: true
+
+eval:
+  bootstrap_iters: 1000
+  ece_bins: 15
+  cam_threshold: 0.5                    # CAM >= threshold*max is the predicted "hot" region for IoU
+
+segmentation:
+  task: Task09_Spleen
+  root_dir: data/raw/msd
+  roi_size: [96, 96, 96]
+  pixdim: [1.5, 1.5, 2.0]
+  batch_size: 2
+  samples_per_volume: 4
+  max_epochs: 300
+  val_interval: 5
+  lr: 1.0e-4
+  amp: true

@@ -1,0 +1,18 @@
+# Install torch first with the CUDA wheel that matches your GPU:
+#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124
+torch>=2.4
+torchvision>=0.19
+monai[nibabel,tqdm]>=1.4
+pydicom>=3.0
+numpy>=1.26
+pandas>=2.2
+scikit-learn>=1.5
+scipy>=1.13
+pillow>=10.4
+opencv-python-headless>=4.10
+matplotlib>=3.9
+pyyaml>=6.0
+tqdm>=4.66
+wandb>=0.18
+dvc[gdrive]>=3.55
+pytest>=8.3

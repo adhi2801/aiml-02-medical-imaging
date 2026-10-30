@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "medimg"
+version = "0.1.0"
+description = "AI-assisted chest X-ray and CT analysis with explainability (education only, not for clinical use)"
+requires-python = ">=3.10"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["slow: end-to-end pipeline run (about 1-2 min)"]
+filterwarnings = [
+    # RSNA stores PatientAge as plain integers ("58" instead of "058Y"); the synthetic test DICOMs do the same on purpose.
+    "ignore:Invalid value for VR AS:UserWarning",
+    "ignore:Using `httpx` with `starlette.testclient`",
+]

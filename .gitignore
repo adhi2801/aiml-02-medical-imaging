@@ -1,0 +1,17 @@
+__pycache__/
+*.pyc
+.venv/
+.env
+.pytest_cache/
+wandb/
+node_modules/
+web/dist/
+
+# Data and model artifacts are versioned with DVC, never with git
+/data/raw/
+/data/processed/
+/models/
+*.dcm
+*.nii.gz
+*.pt
+*.onnx

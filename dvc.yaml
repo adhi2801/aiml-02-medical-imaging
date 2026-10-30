@@ -1,0 +1,70 @@
+stages:
+  prepare:
+    cmd: python -m medimg.data.prepare_rsna
+    deps:
+      - src/medimg/data/prepare_rsna.py
+      - src/medimg/data/dicom.py
+      - data/raw/rsna
+    params:
+      - seed
+      - data
+    outs:
+      - data/processed/rsna
+    metrics:
+      - reports/data_summary.json:
+          cache: false
+
+  train_cls:
+    cmd: python -m medimg.train_cls
+    deps:
+      - src/medimg/train_cls.py
+      - src/medimg/models/classifier.py
+      - src/medimg/data/dataset.py
+      - data/processed/rsna
+    params:
+      - seed
+      - classifier
+    outs:
+      - models/classifier.pt
+    metrics:
+      - reports/train_metrics.json:
+          cache: false
+    plots:
+      - reports/train_history.csv:
+          x: epoch
+          y: val_auroc
+          cache: false
+
+  eval_cls:
+    cmd: python -m medimg.evaluate_cls
+    deps:
+      - src/medimg/evaluate_cls.py
+      - src/medimg/eval/stats.py
+      - src/medimg/explain/gradcam.py
+      - models/classifier.pt
+      - data/processed/rsna
+    params:
+      - eval
+    outs:
+      - models/calibration.json
+      - reports/figures:
+          cache: false
+    metrics:
+      - reports/metrics.json:
+          cache: false
+    plots:
+      - reports/subgroups.csv:
+          cache: false
+
+  train_seg:
+    cmd: python -m medimg.seg.train_seg
+    deps:
+      - src/medimg/seg/train_seg.py
+    params:
+      - seed
+      - segmentation
+    outs:
+      - models/seg_unet3d.pt
+    metrics:
+      - reports/seg_metrics.json:
+          cache: false
