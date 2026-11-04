@@ -1,12 +1,11 @@
 # Overlay for a 16 GB RAM / 4 GB VRAM laptop (GTX 1650). Only the keys listed here change.
 #   set MEDIMG_PARAMS=configs/laptop_gtx1650.yaml && python -u -m medimg.seg.train_seg
-# Windows DataLoader workers are separate processes that each copy the dataset, so workers=0
-# and a small RAM cache keep the run under ~3 GB; the cost is CPU-side loading time per epoch.
+# Windows DataLoader workers are separate processes that each copy the dataset, so workers=0;
+# preprocessed CT volumes come from the on-disk cache in data/processed/msd_cache, not RAM.
 classifier:
   batch_size: 6
   num_workers: 0
 
 segmentation:
   max_epochs: 200
-  cache_rate: 0.15
   num_workers: 0

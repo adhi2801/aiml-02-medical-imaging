@@ -13,15 +13,16 @@ import numpy as np
 import pandas as pd
 import torch
 from monai.apps import DecathlonDataset
-from monai.data import DataLoader, decollate_batch
+from monai.data import DataLoader, PersistentDataset, decollate_batch
+from monai.data.utils import json_hashing
 from monai.inferers import sliding_window_inference
 from monai.losses import DiceCELoss
 from monai.metrics import DiceMetric, HausdorffDistanceMetric
 from monai.networks.layers import Norm
 from monai.networks.nets import UNet
-from monai.transforms import (AsDiscrete, Compose, CropForegroundd, EnsureChannelFirstd, LoadImaged, Orientationd,
-                              RandAffined, RandCropByPosNegLabeld, RandFlipd, RandScaleIntensityd, ScaleIntensityRanged,
-                              Spacingd)
+from monai.transforms import (AsDiscrete, CastToTyped, Compose, CropForegroundd, EnsureChannelFirstd, LoadImaged,
+                              Orientationd, RandAffined, RandCropByPosNegLabeld, RandFlipd, RandScaleIntensityd,
+                              ScaleIntensityRanged, Spacingd)
 
 from medimg import ROOT, load_params, seed_everything
 
@@ -34,12 +35,15 @@ def transforms(sp: dict, train: bool) -> Compose:
         # Soft-tissue abdominal window in Hounsfield units, mapped to [0, 1].
         ScaleIntensityRanged("image", a_min=-57, a_max=164, b_min=0.0, b_max=1.0, clip=True),
         CropForegroundd(keys, source_key="image", allow_smaller=True),
+        # Everything up to here is deterministic and cached on disk; half precision / uint8 keeps the cache small.
+        CastToTyped(keys, dtype=(np.float16, np.uint8)),
     ]
     if not train:
         return Compose(base)
     return Compose(base + [
         RandCropByPosNegLabeld(keys, label_key="label", spatial_size=sp["roi_size"], pos=1, neg=1,
                                num_samples=sp["samples_per_volume"], image_key="image", image_threshold=0),
+        CastToTyped(keys, dtype=np.float32),
         RandFlipd(keys, prob=0.2, spatial_axis=0),
         RandAffined(keys, prob=0.3, rotate_range=(0.1, 0.1, 0.1), scale_range=(0.1, 0.1, 0.1),
                     mode=("bilinear", "nearest"), padding_mode="zeros"),
@@ -61,10 +65,16 @@ def main() -> None:
     root = ROOT / sp["root_dir"]
     root.mkdir(parents=True, exist_ok=True)
 
-    common = dict(root_dir=str(root), task=sp["task"], download=not (root / sp["task"]).exists(),
-                  val_frac=0.2, seed=p["seed"], cache_rate=sp["cache_rate"], num_workers=sp["num_workers"])
-    train_ds = DecathlonDataset(section="training", transform=transforms(sp, True), **common)
-    val_ds = DecathlonDataset(section="validation", transform=transforms(sp, False), **{**common, "download": False})
+    # DecathlonDataset only downloads and splits; preprocessing is cached on disk by PersistentDataset, because
+    # re-resampling every CT each epoch left the GPU idle and an in-RAM cache does not fit a 16 GB laptop.
+    common = dict(root_dir=str(root), task=sp["task"], val_frac=0.2, seed=p["seed"], cache_rate=0.0)
+    split = {s: DecathlonDataset(section=s, download=(s == "training" and not (root / sp["task"]).exists()),
+                                 **common).data for s in ("training", "validation")}
+    cache = ROOT / "data" / "processed" / "msd_cache"
+    train_ds = PersistentDataset(split["training"], transforms(sp, True), cache_dir=cache / "train",
+                                 hash_transform=json_hashing)
+    val_ds = PersistentDataset(split["validation"], transforms(sp, False), cache_dir=cache / "val",
+                               hash_transform=json_hashing)
     train_dl = DataLoader(train_ds, batch_size=sp["batch_size"], shuffle=True, num_workers=sp["num_workers"])
     val_dl = DataLoader(val_ds, batch_size=1, num_workers=sp["num_workers"])
 
@@ -118,7 +128,7 @@ def main() -> None:
             model.eval()
             with torch.no_grad():
                 for batch in val_dl:
-                    x, y = batch["image"].to(device), batch["label"].to(device)
+                    x, y = batch["image"].to(device).float(), batch["label"].to(device).float()
                     with torch.autocast(device.type, enabled=amp):
                         out = sliding_window_inference(x, sp["roi_size"], 4, model, overlap=0.5)
                     preds = [post_pred(o) for o in decollate_batch(out)]
