@@ -65,3 +65,9 @@ def test_api_requires_reason_for_reject(tmp_path, monkeypatch):
         assert client.get("/api/audit/verify").json()["valid"] is True
         assert client.post("/api/results/nope/review", json={"decision": "approve", "reviewer": "dr.rao"}).status_code == 404
         assert client.get("/api/stats").json()["radiologist_agreement"] == 1.0
+
+
+def test_committed_openapi_spec_is_current():
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+    from export_openapi import OUT, render
+    assert OUT.read_text(encoding="utf-8") == render(), "API changed: run python scripts/export_openapi.py"
