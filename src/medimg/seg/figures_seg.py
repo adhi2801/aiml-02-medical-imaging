@@ -3,9 +3,12 @@
     python -m medimg.seg.figures_seg       (after train_seg; reads models/seg_unet3d.pt and reports/seg_history.csv)
 
 Per-case Dice/HD95 go to reports/seg_per_case.csv so the worst case can be discussed, not just the mean.
+Each case is scored twice: the raw argmax and after keeping only the largest connected component (the spleen is one
+organ, so any separate blob is a false positive). HD95 is very sensitive to such far-away blobs.
 """
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import matplotlib
@@ -21,11 +24,21 @@ from monai.data.utils import json_hashing
 from monai.inferers import sliding_window_inference
 from monai.metrics import compute_dice, compute_hausdorff_distance
 from monai.networks.utils import one_hot
+from scipy import ndimage
 
 from medimg import ROOT, load_params
 from medimg.seg.train_seg import build_model, transforms
 
 FIG = ROOT / "reports" / "seg_figures"
+
+
+def keep_largest(mask: np.ndarray) -> np.ndarray:
+    """Largest 26-connected foreground component (same rule as MONAI's KeepLargestConnectedComponent)."""
+    labels, n = ndimage.label(mask, structure=np.ones((3, 3, 3)))
+    if n <= 1:
+        return mask
+    sizes = ndimage.sum_labels(mask, labels, range(1, n + 1))
+    return (labels == int(np.argmax(sizes)) + 1).astype(mask.dtype)
 
 
 def learning_curve(history: pd.DataFrame) -> None:
@@ -56,6 +69,11 @@ def main() -> None:
     ds = PersistentDataset(split, transforms(sp, False), cache_dir=ROOT / "data" / "processed" / "msd_cache" / "val",
                            hash_transform=json_hashing)
 
+    def score(pred: torch.Tensor, y1: torch.Tensor) -> tuple[float, float]:
+        p1 = one_hot(pred, 2)
+        return (compute_dice(p1, y1, include_background=False).item(),
+                compute_hausdorff_distance(p1, y1, include_background=False, percentile=95, spacing=sp["pixdim"]).item())
+
     rows, panels = [], []
     with torch.no_grad():
         for item, case in zip(ds, split):
@@ -63,12 +81,12 @@ def main() -> None:
             y = item["label"][None].to(device).long()
             with torch.autocast(device.type, enabled=sp["amp"] and device.type == "cuda"):
                 logits = sliding_window_inference(x, sp["roi_size"], 4, model, overlap=0.5)
-            pred = logits.argmax(1, keepdim=True)
-            p1, y1 = one_hot(pred, 2), one_hot(y, 2)
-            dice = compute_dice(p1, y1, include_background=False).item()
-            hd95 = compute_hausdorff_distance(p1, y1, include_background=False, percentile=95,
-                                              spacing=sp["pixdim"]).item()
-            rows.append({"case": Path(case["image"]).name.split(".")[0], "dice": round(dice, 4), "hd95_mm": round(hd95, 2)})
+            raw = logits.argmax(1, keepdim=True)
+            pred = torch.from_numpy(keep_largest(raw[0, 0].cpu().numpy()))[None, None].to(device)
+            y1 = one_hot(y, 2)
+            (dice_raw, hd_raw), (dice, hd95) = score(raw, y1), score(pred, y1)
+            rows.append({"case": Path(case["image"]).name.split(".")[0], "dice": round(dice, 4), "hd95_mm": round(hd95, 2),
+                         "dice_raw": round(dice_raw, 4), "hd95_raw_mm": round(hd_raw, 2)})
             img, gt, pr = x[0, 0].cpu().numpy(), y[0, 0].cpu().numpy(), pred[0, 0].cpu().numpy()
             z = int(gt.sum(axis=(0, 1)).argmax())  # axial slice with the most spleen
             panels.append((rows[-1], img[..., z], gt[..., z], pr[..., z]))
@@ -76,6 +94,11 @@ def main() -> None:
     per_case = pd.DataFrame(rows).sort_values("dice")
     per_case.to_csv(ROOT / "reports" / "seg_per_case.csv", index=False)
     print(per_case.to_string(index=False))
+    summary = {k: round(float(per_case[k].mean()), 4) for k in ("dice", "hd95_mm", "dice_raw", "hd95_raw_mm")}
+    summary |= {"dice_min": float(per_case.dice.min()), "n_cases": len(per_case),
+                "postprocessing": "largest connected component"}
+    (ROOT / "reports" / "seg_postproc.json").write_text(json.dumps(summary, indent=2))
+    print(json.dumps(summary))
 
     # Best, median and worst validation case, so the figure is honest about failures too.
     order = sorted(panels, key=lambda t: t[0]["dice"])

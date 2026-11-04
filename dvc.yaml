@@ -85,6 +85,9 @@ stages:
           cache: false
       - reports/seg_figures/seg_examples.png:
           cache: false
+    metrics:
+      - reports/seg_postproc.json:
+          cache: false
     plots:
       - reports/seg_per_case.csv:
           x: case

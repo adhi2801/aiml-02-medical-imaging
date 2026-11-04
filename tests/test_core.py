@@ -102,3 +102,14 @@ def test_params_overlay(tmp_path, monkeypatch):
     assert p["segmentation"]["cache_rate"] == 0.1
     assert p["segmentation"]["roi_size"] == base["segmentation"]["roi_size"]  # untouched keys survive
     assert p["classifier"] == base["classifier"]
+
+
+def test_keep_largest_component_drops_far_blobs():
+    from medimg.seg.figures_seg import keep_largest
+    m = np.zeros((20, 20, 20), np.uint8)
+    m[2:8, 2:8, 2:8] = 1          # organ
+    m[15:17, 15:17, 15:17] = 1    # far-away false positive
+    m[8, 8, 8] = 1                # touches the organ diagonally: 26-connected, so it stays
+    out = keep_largest(m)
+    assert out[15, 15, 15] == 0 and out[8, 8, 8] == 1 and out.sum() == 6 ** 3 + 1
+    assert keep_largest(np.zeros_like(m)).sum() == 0
