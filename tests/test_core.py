@@ -90,3 +90,15 @@ def test_stats():
     assert fit_temperature(3 * z, yz) == pytest.approx(3.0, rel=0.1)
     cs = confusion_stats(np.array([1, 1, 0, 0]), np.array([0.9, 0.2, 0.8, 0.1]), 0.5)
     assert (cs["tp"], cs["fn"], cs["fp"], cs["tn"]) == (1, 1, 1, 1)
+
+
+def test_params_overlay(tmp_path, monkeypatch):
+    from medimg import ROOT, load_params
+    base = load_params()
+    overlay = tmp_path / "small.yaml"
+    overlay.write_text("segmentation:\n  cache_rate: 0.1\n")
+    monkeypatch.setenv("MEDIMG_PARAMS", str(overlay))
+    p = load_params(ROOT / "params.yaml")
+    assert p["segmentation"]["cache_rate"] == 0.1
+    assert p["segmentation"]["roi_size"] == base["segmentation"]["roi_size"]  # untouched keys survive
+    assert p["classifier"] == base["classifier"]

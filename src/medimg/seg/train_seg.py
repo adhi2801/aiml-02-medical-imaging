@@ -10,6 +10,7 @@ import os
 import time
 
 import numpy as np
+import pandas as pd
 import torch
 from monai.apps import DecathlonDataset
 from monai.data import DataLoader, decollate_batch
@@ -81,10 +82,24 @@ def main() -> None:
         import wandb
         run = wandb.init(project="aiml02-seg", config={**sp, "seed": p["seed"]})
 
-    best, history = {"dice": -1.0}, []
+    best, history, start = {"dice": -1.0}, [], 0
     ckpt = ROOT / "models" / "seg_unet3d.pt"
     ckpt.parent.mkdir(exist_ok=True)
-    for epoch in range(sp["max_epochs"]):
+    # Rolling end-of-epoch state so a killed run (OOM, reboot) resumes instead of starting over.
+    # Ignored if the params changed, since the LR schedule length depends on max_epochs.
+    last = ROOT / "models" / "seg_last.pt"
+    if last.exists():
+        state = torch.load(last, map_location=device, weights_only=False)
+        if state["params"] == sp:
+            model.load_state_dict(state["model"])
+            optimizer.load_state_dict(state["optimizer"])
+            scheduler.load_state_dict(state["scheduler"])
+            scaler.load_state_dict(state["scaler"])
+            best, history, start = state["best"], state["history"], state["epoch"] + 1
+            print(f"resuming at epoch {start} (best dice so far {best['dice']:.4f})")
+        else:
+            print("params changed since models/seg_last.pt was written: starting fresh")
+    for epoch in range(start, sp["max_epochs"]):
         model.train()
         epoch_loss, t0 = 0.0, time.time()
         for batch in train_dl:
@@ -117,6 +132,10 @@ def main() -> None:
                 torch.save({"state_dict": model.state_dict(), "params": sp}, ckpt)
         history.append(rec)
         print(json.dumps(rec))
+        torch.save({"model": model.state_dict(), "optimizer": optimizer.state_dict(),
+                    "scheduler": scheduler.state_dict(), "scaler": scaler.state_dict(),
+                    "epoch": epoch, "best": best, "history": history, "params": sp}, last.with_suffix(".tmp"))
+        last.with_suffix(".tmp").replace(last)
         if run:
             run.log(rec)
 
@@ -125,6 +144,7 @@ def main() -> None:
     (out / "seg_metrics.json").write_text(json.dumps(
         {"val_dice": round(best["dice"], 4), "val_hd95_mm": round(float(np.nan_to_num(best.get("hd95_mm", np.nan))), 2),
          "best_epoch": best.get("epoch"), "n_train": len(train_ds), "n_val": len(val_ds)}, indent=2))
+    pd.DataFrame(history).to_csv(out / "seg_history.csv", index=False)
     if run:
         run.summary.update(best)
         run.finish()
