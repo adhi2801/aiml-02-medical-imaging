@@ -13,9 +13,13 @@ jobs:
       - name: Install (CPU torch)
         run: |
           uv venv --python 3.12
-          uv pip install torch==2.6.0 torchvision==0.21.0 --index-url https://download.pytorch.org/whl/cpu
-          uv pip install "monai>=1.4" nibabel "pydicom>=3.0" pandas scikit-learn scipy pillow opencv-python-headless \
+          # One resolve with the CPU builds pinned: installing monai in a second step let uv swap torch for the
+          # PyPI build while torchvision stayed +cpu ("operator torchvision::nms does not exist").
+          uv pip install -c constraints-cpu.txt --extra-index-url https://download.pytorch.org/whl/cpu \
+            --index-strategy unsafe-best-match torch torchvision \
+            "monai>=1.4" nibabel "pydicom>=3.0" pandas scikit-learn scipy pillow opencv-python-headless \
             matplotlib pyyaml tqdm pytest -r services/inference/requirements.txt -e .
+          .venv/bin/python -c "import torch, torchvision; print(torch.__version__, torchvision.__version__)"
       - run: .venv/bin/python -m pytest -q
 
   web:
