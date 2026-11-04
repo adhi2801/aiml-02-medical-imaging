@@ -68,3 +68,25 @@ stages:
     metrics:
       - reports/seg_metrics.json:
           cache: false
+    plots:
+      - reports/seg_history.csv:
+          x: epoch
+          y: val_dice
+          cache: false
+
+  seg_figures:
+    cmd: python -m medimg.seg.figures_seg
+    deps:
+      - src/medimg/seg/figures_seg.py
+      - models/seg_unet3d.pt
+      - reports/seg_history.csv
+    outs:
+      - reports/seg_figures/seg_learning_curve.png:
+          cache: false
+      - reports/seg_figures/seg_examples.png:
+          cache: false
+    plots:
+      - reports/seg_per_case.csv:
+          x: case
+          y: dice
+          cache: false
