@@ -53,8 +53,11 @@ def push_kernel(api, user, stage):
         "enable_gpu": True, "enable_internet": True,
         "dataset_sources": [f"{user}/{SRC_SLUG}"], "competition_sources": [COMPETITION],
     }))
-    api.kernels_push(str(stage))
-    print(f"kernel started: https://www.kaggle.com/code/{user}/{KERNEL_SLUG}")
+    resp = api.kernels_push(str(stage))
+    err = getattr(resp, "error", None)
+    if err:  # kernels_push reports failures in the response instead of raising
+        raise SystemExit(f"kernel push failed: {err}")
+    print(f"kernel started: {getattr(resp, 'url', None) or f'https://www.kaggle.com/code/{user}/{KERNEL_SLUG}'}")
 
 
 def main():
