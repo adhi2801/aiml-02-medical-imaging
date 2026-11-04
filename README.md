@@ -25,7 +25,7 @@ All numbers are produced by `dvc repro` and read from `reports/` (never typed by
 | ECE before → after temperature scaling | _…_ |
 | Grad-CAM pointing game (hit inside radiologist box) | _…_ |
 | Shortcut check: AUROC from view / view+sex+age alone (no pixels) | _…_ |
-| Spleen Dice / HD95 (mm), 8 validation CTs, largest-component post-processing | _from `reports/seg_postproc.json`_ |
+| Spleen Dice / HD95 (mm), 8 validation CTs, largest-component post-processing | **0.912 / 6.1** (raw 0.893 / 95.3; worst case 0.770). Best epoch 184 of 200. MSD has no public test labels, so this is validation |
 
 Subgroup performance (sex, age band, AP vs PA view) is in `reports/subgroups.csv` and discussed in the
 [model card](docs/MODEL_CARD.md).
