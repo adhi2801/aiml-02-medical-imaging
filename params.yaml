@@ -31,7 +31,7 @@ segmentation:
   pixdim: [1.5, 1.5, 2.0]
   batch_size: 2
   samples_per_volume: 4
-  max_epochs: 300
+  max_epochs: 600                       # MONAI spleen reference recipe; configs/laptop_gtx1650.yaml uses 200
   val_interval: 5
   lr: 1.0e-4
   amp: true

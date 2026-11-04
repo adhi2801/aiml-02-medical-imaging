@@ -10,7 +10,7 @@ from medimg.data.dataset import preprocess
 from medimg.data.dicom import _parse_age, read_dicom
 from medimg.eval.stats import bootstrap_auc, confusion_stats, ece, fit_temperature, sigmoid
 from medimg.explain.gradcam import boxes_to_mask, cam_iou, cam_to_rgba, gradcam, pointing_hit
-from medimg.models.classifier import CXRClassifier
+from medimg.models.classifier import CXRClassifier, load_checkpoint, save_checkpoint
 
 
 def make_dicom(path, pixels: np.ndarray, photometric="MONOCHROME2", sex="F", age="058Y", view="AP"):
@@ -132,3 +132,11 @@ def test_shortcut_baseline_detects_view_leak():
     assert view_auc > 0.65                                   # the leak is found from metadata alone
     p_all = shortcut_baseline(train, test, ["view", "sex", "age"])
     assert p_all.shape == (len(test),) and np.isfinite(p_all).all()
+
+
+def test_checkpoint_roundtrip_with_numpy_metric(tmp_path):
+    # sklearn returns np.float64; it must survive torch.load(weights_only=True)
+    model = CXRClassifier("efficientnet_b0", pretrained=False)
+    save_checkpoint(model, 64, tmp_path / "c.pt", val_auroc=np.float64(0.89), epoch=np.int64(7))
+    _, ckpt = load_checkpoint(tmp_path / "c.pt")
+    assert ckpt["val_auroc"] == pytest.approx(0.89) and type(ckpt["epoch"]) is int

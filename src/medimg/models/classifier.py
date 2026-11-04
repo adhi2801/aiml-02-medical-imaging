@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import numpy as np
 import torch
 import torch.nn as nn
 import torchvision.models as tvm
@@ -40,6 +41,8 @@ class CXRClassifier(nn.Module):
 
 def save_checkpoint(model: CXRClassifier, img_size: int, path: Path, **extra) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
+    # numpy scalars (e.g. sklearn metrics) are not allowed by torch.load(weights_only=True)
+    extra = {k: v.item() if isinstance(v, np.generic) else v for k, v in extra.items()}
     torch.save({"arch": model.arch, "img_size": img_size, "state_dict": model.state_dict(), **extra}, path)
 
 

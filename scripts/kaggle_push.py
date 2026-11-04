@@ -7,6 +7,7 @@ kernel version.
 
     python scripts/kaggle_push.py            # upload source + start the run
     python scripts/kaggle_push.py --status   # check the run
+    python scripts/kaggle_push.py --log      # print the run log
     python scripts/kaggle_push.py --fetch    # download outputs to kaggle_out/
 
 Prerequisite: accept the rules of rsna-pneumonia-detection-challenge on kaggle.com.
@@ -60,10 +61,23 @@ def push_kernel(api, user, stage):
     print(f"kernel started: {getattr(resp, 'url', None) or f'https://www.kaggle.com/code/{user}/{KERNEL_SLUG}'}")
 
 
+def fetch_log(api, user):
+    """Only the run log. kernels_output pages through every output file before writing the log."""
+    from kagglesdk.kernels.types.kernels_api_service import ApiListKernelSessionOutputRequest
+
+    with api.build_kaggle_client() as kaggle:
+        request = ApiListKernelSessionOutputRequest()
+        request.user_name, request.kernel_slug, request.page_size = user, KERNEL_SLUG, 1
+        log = kaggle.kernels.kernels_api_client.list_kernel_session_output(request).log or "[]"
+    lines = [e.get("data", "") for e in json.loads(log)]
+    return "".join(lines)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--status", action="store_true")
     ap.add_argument("--fetch", action="store_true")
+    ap.add_argument("--log", action="store_true", help="print the run log")
     args = ap.parse_args()
 
     api = KaggleApi()
@@ -73,6 +87,8 @@ def main():
 
     if args.status:
         print(api.kernels_status(kernel))
+    elif args.log:
+        print(fetch_log(api, user))
     elif args.fetch:
         out = ROOT / "kaggle_out"
         api.kernels_output(kernel, path=str(out))
