@@ -72,7 +72,8 @@ def test_full_pipeline(tmp_path):
     stage("medimg.evaluate_cls", tmp_path)
     metrics = json.loads((tmp_path / "reports/metrics.json").read_text())
     for key in ("auroc", "auroc_ci95", "ece_before", "ece_after", "threshold", "temperature",
-                "gradcam_pointing_game", "gradcam_mean_iou", "sensitivity", "specificity"):
+                "gradcam_pointing_game", "gradcam_mean_iou", "sensitivity", "specificity",
+                "baseline_view_only_auroc", "baseline_metadata_auroc"):
         assert key in metrics, key
     assert (tmp_path / "reports/figures/test_curves.png").exists()
     assert (tmp_path / "reports/figures/gradcam_gallery.png").exists()

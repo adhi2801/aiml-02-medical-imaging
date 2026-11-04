@@ -24,7 +24,8 @@ All numbers are produced by `dvc repro` and read from `reports/` (never typed by
 | Sensitivity / Specificity @ val-selected threshold | _…_ |
 | ECE before → after temperature scaling | _…_ |
 | Grad-CAM pointing game (hit inside radiologist box) | _…_ |
-| Spleen Dice / HD95 (mm) | _from `reports/seg_metrics.json`_ |
+| Shortcut check: AUROC from view / view+sex+age alone (no pixels) | _…_ |
+| Spleen Dice / HD95 (mm), 8 validation CTs, largest-component post-processing | _from `reports/seg_postproc.json`_ |
 
 Subgroup performance (sex, age band, AP vs PA view) is in `reports/subgroups.csv` and discussed in the
 [model card](docs/MODEL_CARD.md).

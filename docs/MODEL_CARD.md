@@ -26,9 +26,13 @@ Grad-CAM pointing game, and Grad-CAM IoU.
 ## Known limitations and bias risks
 1. **View-position shortcut.** AP (portable, bedside) films come from sicker inpatients and have much higher opacity
    prevalence than PA films. A model can partly learn "AP ⇒ opacity" from markers, tubes and positioning instead of lung
-   findings. *Mitigation:* stratified split, per-view metrics, a UI warning on AP films, and Grad-CAM review.
+   findings. This has been demonstrated on chest X-ray pneumonia classifiers in the literature. *Mitigation:* stratified split,
+   per-view metrics, a UI warning on AP films, Grad-CAM review, and a **metadata-only baseline**
+   (`baseline_view_only_auroc` and `baseline_metadata_auroc` in `reports/metrics.json`). That baseline is a logistic regression on view,
+   sex and age with no pixels. The image model has to clearly beat it, and also hold up *within* AP and *within* PA films
+   (`reports/subgroups.csv`), before we can say it reads the lungs rather than the acquisition.
 2. **Single source.** All images come from one US hospital system (NIH Clinical Center). Expect a performance drop on other
-   scanners, populations and protocols. No external validation has been done.
+   scanners, populations and protocols. No external testing (CLAIM 2024 terminology) has been done.
 3. **Label noise.** Labels come from radiologist reads of the image alone, without clinical correlation. "Lung opacity" is
    broader than pneumonia (it includes edema, atelectasis, hemorrhage and more).
 4. **Demographics.** Only sex and age are available; race/ethnicity is not recorded, so fairness across those groups cannot be measured.
@@ -44,5 +48,24 @@ Grad-CAM pointing game, and Grad-CAM IoU.
 
 ## Segmentation model (MSD Spleen)
 MONAI 3D U-Net (5 levels, residual units) trained on 96³ patches at 1.5×1.5×2.0 mm spacing with DiceCE loss.
-Evaluated with sliding-window inference using Dice and HD95. Limitations: only 41 labeled volumes in total (about 33 train / 8 validation) from one
-institution, a single organ, portal-venous-phase CT only.
+Evaluated with sliding-window inference using Dice and HD95. Post-processing keeps the largest connected component,
+since the spleen is a single organ. Raw and post-processed scores are both reported (`reports/seg_postproc.json`,
+`reports/seg_per_case.csv`), because a few distant false-positive blobs inflate HD95 by tens of millimetres.
+
+**Context:** MONAI's reference bundle for this task reports a mean Dice of about 0.96 on its own split, after hundreds to
+over a thousand epochs on data-centre GPUs. This model was trained for 200 epochs on a 4 GB laptop GPU, so a gap is
+expected. The splits also differ, so the numbers are not directly comparable.
+
+Limitations: only 41 labeled volumes in total (33 train / 8 validation) from one institution, a single organ,
+portal-venous-phase CT only. The validation set is small, so per-case results are listed rather than only the mean.
+
+## Regulatory context (for orientation only)
+This prototype is not a regulated device. The design follows ideas from the FDA / Health Canada / MHRA
+*Good Machine Learning Practice* principles (2021) and their guiding principles for *Predetermined Change Control Plans*
+(2023):
+- **Separate training and test data, with a reproducible split:** fixed seed, stratified, versioned with DVC.
+- **Focus on human–AI team performance:** mandatory radiologist sign-off, agreement rate tracked in `/api/stats`.
+- **Clear information for users:** this model card, the disclaimer on every screen and API response, and Grad-CAM shown with its limits.
+- **Monitoring and controlled change:** the model version is stamped on every result and audit entry. A real product would
+  specify in advance which retraining changes are allowed and how each one is re-tested (a PCCP). Here, `dvc repro`
+  re-runs the identical evaluation for any new model.

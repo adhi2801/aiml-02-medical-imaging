@@ -113,3 +113,22 @@ def test_keep_largest_component_drops_far_blobs():
     out = keep_largest(m)
     assert out[15, 15, 15] == 0 and out[8, 8, 8] == 1 and out.sum() == 6 ** 3 + 1
     assert keep_largest(np.zeros_like(m)).sum() == 0
+
+
+def test_shortcut_baseline_detects_view_leak():
+    import pandas as pd
+    from sklearn.metrics import roc_auc_score
+
+    from medimg.eval.stats import shortcut_baseline
+    rng = np.random.default_rng(0)
+    n = 2000
+    view = rng.choice(["AP", "PA"], n)
+    label = (rng.random(n) < np.where(view == "AP", 0.5, 0.1)).astype(int)  # AP films are 5x more often positive
+    df = pd.DataFrame({"view": view, "sex": rng.choice(["M", "F"], n), "age": rng.integers(20, 90, n).astype(float),
+                       "label": label})
+    df.loc[::50, "age"] = np.nan
+    train, test = df.iloc[:1500], df.iloc[1500:]
+    view_auc = roc_auc_score(test.label, shortcut_baseline(train, test, ["view"]))
+    assert view_auc > 0.65                                   # the leak is found from metadata alone
+    p_all = shortcut_baseline(train, test, ["view", "sex", "age"])
+    assert p_all.shape == (len(test),) and np.isfinite(p_all).all()

@@ -76,3 +76,27 @@ def confusion_stats(y: np.ndarray, p: np.ndarray, thr: float) -> dict:
     return {"tp": tp, "fp": fp, "fn": fn, "tn": tn,
             "sensitivity": div(tp, tp + fn), "specificity": div(tn, tn + fp),
             "ppv": div(tp, tp + fp), "npv": div(tn, tn + fn)}
+
+
+def shortcut_baseline(train, test, features: list[str]) -> np.ndarray:
+    """P(positive) for each test row from metadata alone (e.g. ["view"] or ["view", "sex", "age"]), no pixels.
+
+    If an image model barely beats this, it may be reading the acquisition (AP films come from sicker, bedbound
+    patients) rather than the lungs. Age is used as a number (median-filled); everything else is one-hot encoded.
+    """
+    import pandas as pd
+    from sklearn.linear_model import LogisticRegression
+
+    def encode(df):
+        cols = []
+        for f in features:
+            if f == "age":
+                cols.append(df[[f]].astype(float).fillna(train[f].median()) / 100)
+            else:
+                cols.append(pd.get_dummies(df[f].astype(str), prefix=f))
+        return pd.concat(cols, axis=1)
+
+    x_train = encode(train)
+    x_test = encode(test).reindex(columns=x_train.columns, fill_value=0)
+    clf = LogisticRegression(max_iter=1000).fit(x_train.to_numpy(float), train["label"].to_numpy())
+    return clf.predict_proba(x_test.to_numpy(float))[:, 1]

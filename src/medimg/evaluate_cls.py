@@ -24,8 +24,8 @@ from tqdm import tqdm
 
 from medimg import ROOT, load_params
 from medimg.data.dataset import RSNADataset
-from medimg.eval.stats import (bootstrap_auc, confusion_stats, ece, fit_temperature, reliability_curve, sigmoid,
-                               youden_threshold)
+from medimg.eval.stats import (bootstrap_auc, confusion_stats, ece, fit_temperature, reliability_curve,
+                               shortcut_baseline, sigmoid, youden_threshold)
 from medimg.explain.gradcam import boxes_to_mask, cam_iou, gradcam, overlay, pointing_hit
 from medimg.models.classifier import load_checkpoint
 from medimg.train_cls import predict
@@ -116,6 +116,13 @@ def main() -> None:
     by_view = subgroups[subgroups.attribute == "view"].set_index("group")
     if {"AP", "PA"} <= set(by_view.index):
         metrics["auroc_gap_ap_minus_pa"] = round(float(by_view.loc["AP", "auroc"] - by_view.loc["PA", "auroc"]), 4)
+
+    # ---- Shortcut check: how far does metadata alone get, with no pixels? ----
+    train_df = meta[meta.split == "train"]
+    for name, feats in (("view_only", ["view"]), ("metadata", ["view", "sex", "age"])):
+        b_auc, b_lo, b_hi = bootstrap_auc(test_y, shortcut_baseline(train_df, test_df, feats), ep["bootstrap_iters"], p["seed"])
+        metrics[f"baseline_{name}_auroc"] = round(b_auc, 4)
+        metrics[f"baseline_{name}_auroc_ci95"] = [round(b_lo, 4), round(b_hi, 4)]
 
     # ---- Grad-CAM localization on test positives ----
     pos = test_df[test_df.label == 1].reset_index(drop=True)
