@@ -16,6 +16,7 @@ import argparse
 import json
 import subprocess
 import tempfile
+import time
 from pathlib import Path
 
 from kaggle.api.kaggle_api_extended import KaggleApi
@@ -42,6 +43,13 @@ def push_source(api, user, stage):
         api.dataset_create_version(str(stage), version_notes=f"source @ {sha}", quiet=True)
     else:
         api.dataset_create_new(str(stage), public=False, quiet=True)
+    # A kernel started while the new version is still processing would run the previous source
+    for _ in range(60):
+        if str(api.dataset_status(f"{user}/{SRC_SLUG}")).lower() == "ready":
+            break
+        time.sleep(5)
+    else:
+        raise SystemExit("dataset version still not ready after 5 min; re-run later")
     print(f"source @ {sha} -> {user}/{SRC_SLUG}")
 
 
