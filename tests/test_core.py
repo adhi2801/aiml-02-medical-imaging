@@ -157,3 +157,30 @@ def test_cv_folds_partition_and_bn_recompute():
 
     lo, hi = bootstrap_ci(np.array([0.9, 0.92, 0.95, 0.5, 0.94]))
     assert 0.5 <= lo < hi <= 0.95
+
+
+def test_seg_batches_mix_fresh_and_cached_items(tmp_path):
+    """Cross-validation trains on CTs whose preprocessing is cached and CTs processed for the first time in the same
+    batch; both must come out as tensors or collation fails (it did on Kaggle in fold 1)."""
+    import nibabel as nib
+    from monai.data import DataLoader, PersistentDataset
+    from monai.data.utils import json_hashing
+
+    from medimg.seg.train_seg import transforms
+
+    rng = np.random.default_rng(0)
+    items = []
+    for i in range(4):
+        img = rng.normal(50, 30, (24, 24, 24)).astype(np.float32)
+        lab = np.zeros((24, 24, 24), np.uint8)
+        lab[8:16, 8:16, 8:16] = 1
+        for name, arr in (("img", img), ("lab", lab)):
+            nib.save(nib.Nifti1Image(arr, np.eye(4)), tmp_path / f"{name}{i}.nii.gz")
+        items.append({"image": str(tmp_path / f"img{i}.nii.gz"), "label": str(tmp_path / f"lab{i}.nii.gz")})
+    sp = {"pixdim": [1.0, 1.0, 1.0], "roi_size": [16, 16, 16], "samples_per_volume": 2}
+    cache = tmp_path / "cache"
+    PersistentDataset(items[:2], transforms(sp, True), cache_dir=cache, hash_transform=json_hashing)[0]  # warm 2
+    PersistentDataset(items[:2], transforms(sp, True), cache_dir=cache, hash_transform=json_hashing)[1]
+    ds = PersistentDataset(items, transforms(sp, True), cache_dir=cache, hash_transform=json_hashing)
+    for batch in DataLoader(ds, batch_size=4, num_workers=0):  # 2 cached + 2 fresh in one batch
+        assert isinstance(batch["image"], torch.Tensor) and batch["image"].dtype == torch.float32

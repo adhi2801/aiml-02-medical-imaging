@@ -20,7 +20,8 @@ from monai.losses import DiceCELoss
 from monai.metrics import DiceMetric, HausdorffDistanceMetric
 from monai.networks.layers import Norm
 from monai.networks.nets import UNet
-from monai.transforms import (AsDiscrete, CastToTyped, Compose, CropForegroundd, EnsureChannelFirstd, LoadImaged,
+from monai.transforms import (AsDiscrete, CastToTyped, Compose, CropForegroundd, EnsureChannelFirstd, EnsureTyped,
+                              LoadImaged,
                               Orientationd, RandAffined, RandCropByPosNegLabeld, RandFlipd, RandScaleIntensityd,
                               ScaleIntensityRanged, Spacingd)
 
@@ -34,7 +35,9 @@ def transforms(sp: dict, train: bool) -> Compose:
         Spacingd(keys, pixdim=sp["pixdim"], mode=("bilinear", "nearest")),
         # Soft-tissue abdominal window in Hounsfield units, mapped to [0, 1].
         ScaleIntensityRanged("image", a_min=-57, a_max=164, b_min=0.0, b_max=1.0, clip=True),
-        CropForegroundd(keys, source_key="image", allow_smaller=True),
+        # No crop-coordinate keys: they are numpy arrays when fresh and tensors when read from the cache, so a
+        # batch mixing both cannot be collated (nothing downstream uses them).
+        CropForegroundd(keys, source_key="image", allow_smaller=True, start_coord_key=None, end_coord_key=None),
         # Everything up to here is deterministic and cached on disk; half precision / uint8 keeps the cache small.
         CastToTyped(keys, dtype=(np.float16, np.uint8)),
     ]
@@ -48,6 +51,9 @@ def transforms(sp: dict, train: bool) -> Compose:
         RandAffined(keys, prob=0.3, rotate_range=(0.1, 0.1, 0.1), scale_range=(0.1, 0.1, 0.1),
                     mode=("bilinear", "nearest"), padding_mode="zeros"),
         RandScaleIntensityd("image", factors=0.1, prob=0.5),
+        # A CT read back from the disk cache arrives as numpy, a freshly processed one as a tensor, and random
+        # transforms that do not fire keep the type. Cross-validation mixes both in one batch, so force tensors.
+        EnsureTyped(keys, data_type="tensor", dtype=torch.float32),
     ])
 
 
