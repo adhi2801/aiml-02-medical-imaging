@@ -65,6 +65,8 @@ stages:
       - segmentation
     outs:
       - models/seg_unet3d.pt
+      - models/seg_last.pt:   # final epoch (reported) and resume state
+          persist: true
     metrics:
       - reports/seg_metrics.json:
           cache: false
@@ -78,7 +80,7 @@ stages:
     cmd: python -m medimg.seg.figures_seg
     deps:
       - src/medimg/seg/figures_seg.py
-      - models/seg_unet3d.pt
+      - models/seg_last.pt
       - reports/seg_history.csv
     outs:
       - reports/seg_figures/seg_learning_curve.png:

@@ -140,3 +140,20 @@ def test_checkpoint_roundtrip_with_numpy_metric(tmp_path):
     save_checkpoint(model, 64, tmp_path / "c.pt", val_auroc=np.float64(0.89), epoch=np.int64(7))
     _, ckpt = load_checkpoint(tmp_path / "c.pt")
     assert ckpt["val_auroc"] == pytest.approx(0.89) and type(ckpt["epoch"]) is int
+
+
+def test_cv_folds_partition_and_bn_recompute():
+    from medimg.seg.cv_seg import bootstrap_ci, folds, recompute_bn
+
+    parts = folds(41, 5, seed=0)
+    assert sorted(i for p in parts for i in p.tolist()) == list(range(41)) and len(parts) == 5
+
+    # Averaged weights get BatchNorm statistics recomputed from (dict) training batches.
+    net = torch.nn.Sequential(torch.nn.Conv3d(1, 2, 1), torch.nn.BatchNorm3d(2))
+    loader = [{"image": torch.full((2, 1, 4, 4, 4), 3.0) + torch.randn(2, 1, 4, 4, 4) * 0.1} for _ in range(5)]
+    recompute_bn(net, loader, "cpu", batches=5)
+    bn = net[1]
+    assert not net.training and bn.momentum is None and int(bn.num_batches_tracked) == 5
+
+    lo, hi = bootstrap_ci(np.array([0.9, 0.92, 0.95, 0.5, 0.94]))
+    assert 0.5 <= lo < hi <= 0.95

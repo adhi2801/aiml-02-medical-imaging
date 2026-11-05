@@ -28,7 +28,7 @@ released classifier without retraining it: `python scripts/kaggle_push.py --eval
 | ECE before → after temperature scaling | 0.073 → 0.071 (T = 1.29; the model was already close to calibrated) |
 | Grad-CAM pointing game (hit inside radiologist box) | 54 % of positive test images (mean IoU 0.24) |
 | Shortcut check: AUROC from view / view+sex+age alone (no pixels) | 0.707 / 0.725, so the image adds about +0.16 AUROC over metadata |
-| Spleen Dice / HD95 (mm), 8 validation CTs, largest-component post-processing | **0.939 / 3.2** (raw 0.930 / 22.6; worst case 0.925). 600 epochs on a Kaggle T4, best epoch 224. The same code for 200 epochs on the laptop GTX 1650 reaches 0.912 / 6.1 (`reports/seg_laptop_200ep/`). MSD has no public test labels, so this is validation |
+| Spleen Dice / HD95 (mm), 8 validation CTs, largest-component post-processing, **final epoch (no checkpoint selection)** | **0.885 / 6.7** (median 0.944; 6 of 8 CTs ≥ 0.94; worst case spleen_26 0.53). 600 epochs on a Kaggle T4. Picking the best of 120 validation checkpoints would report 0.939, but that selects on the same 8 CTs, so it is optimistic. 5-fold cross-validation over all 41 CTs is in progress |
 
 Subgroup performance (sex, age band, AP vs PA view) is in `reports/subgroups.csv` and discussed in the
 [model card](docs/MODEL_CARD.md). In short: the model beats the metadata-only baseline *within* AP films (0.838) and

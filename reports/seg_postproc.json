@@ -1,9 +1,10 @@
 {
-  "dice": 0.9393,
-  "hd95_mm": 3.1837,
-  "dice_raw": 0.9304,
-  "hd95_raw_mm": 22.6137,
-  "dice_min": 0.9247,
+  "dice": 0.8852,
+  "hd95_mm": 6.69,
+  "dice_raw": 0.8812,
+  "hd95_raw_mm": 25.6987,
+  "dice_min": 0.5281,
   "n_cases": 8,
-  "postprocessing": "largest connected component"
+  "postprocessing": "largest connected component",
+  "checkpoint": "final epoch (no selection)"
 }

@@ -36,3 +36,9 @@ segmentation:
   lr: 1.0e-4
   amp: true
   num_workers: 2
+
+segmentation_cv:                        # medimg.seg.cv_seg: every labelled CT scored once, no checkpoint selection
+  folds: 5
+  epochs: 300                           # fixed schedule per fold (5 x 300 fits one 12 h Kaggle T4 session)
+  swa_start_frac: 0.5                   # average the weights of the second half of training
+  bn_batches: 40                        # training batches used to recompute BatchNorm stats for the SWA weights

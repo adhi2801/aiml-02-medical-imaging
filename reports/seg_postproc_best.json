@@ -1,0 +1,10 @@
+{
+  "dice": 0.9392,
+  "hd95_mm": 3.1837,
+  "dice_raw": 0.9302,
+  "hd95_raw_mm": 22.6137,
+  "dice_min": 0.9235,
+  "n_cases": 8,
+  "postprocessing": "largest connected component",
+  "checkpoint": "best validation epoch (optimistic)"
+}

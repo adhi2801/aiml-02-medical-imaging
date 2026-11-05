@@ -83,11 +83,20 @@ Evaluated with sliding-window inference using Dice and HD95. Post-processing kee
 since the spleen is a single organ. Raw and post-processed scores are both reported (`reports/seg_postproc.json`,
 `reports/seg_per_case.csv`), because a few distant false-positive blobs inflate HD95 by tens of millimetres.
 
-**Results (8 validation CTs):** trained for 600 epochs on a Kaggle T4 (best epoch 224), it reaches Dice **0.939** and HD95
-**3.2 mm** after post-processing (raw 0.930 / 22.6 mm). Every case scores at least 0.925. The same code trained for 200 epochs
-on a 4 GB laptop GTX 1650 reached 0.912 / 6.1 mm with a worst case of 0.770 (`reports/seg_laptop_200ep/`), so the longer
-schedule mostly fixed the hardest case. Post-processing matters most for HD95: on spleen_53 it removes a distant
-false-positive blob and takes HD95 from 155 mm to 2.1 mm.
+**Results (8 validation CTs, final epoch, no checkpoint selection):** after 600 epochs on a Kaggle T4, mean Dice
+**0.885** and HD95 **6.7 mm** after post-processing (raw 0.881 / 25.7 mm). The median is 0.944 and 6 of 8 CTs score at
+least 0.94, but spleen_26 fails at 0.53 and spleen_49 reaches 0.86 (`reports/seg_per_case.csv`).
+
+**Why the final epoch and not the best one:** the best of the 120 validation checkpoints (epoch 224) scores 0.939, with
+spleen_26 at 0.93 (`reports/seg_postproc_best.json`). That checkpoint was chosen *on these same 8 CTs*, so its score is
+biased upwards. The gap between 0.939 and 0.885, and one case swinging from 0.93 to 0.53 between epochs, show that a single
+8-case split cannot support a precise number either way. **5-fold cross-validation** (`medimg.seg.cv_seg`) therefore scores
+every one of the 41 labelled CTs exactly once, with a model that never trained on it, at a fixed schedule with
+weight averaging (SWA) and no selection. Its mean ± SD will replace this paragraph's numbers.
+
+Post-processing matters most for HD95: on spleen_53 it removes a distant false-positive blob and takes HD95 from 154 mm to
+2.0 mm. A 200-epoch run on a 4 GB laptop GTX 1650 is kept for reference in `reports/seg_laptop_200ep/` (best-epoch
+selection, so optimistic in the same way).
 
 **Context:** MONAI's reference bundle for this task reports a mean Dice of about 0.96 on its own split. The splits differ,
 so the numbers are not directly comparable, and with 8 validation volumes one case moves the mean by about 0.01.

@@ -8,6 +8,7 @@ kernel version.
     python scripts/kaggle_push.py            # upload source + start the run
     python scripts/kaggle_push.py --status   # check the run
     python scripts/kaggle_push.py --eval-only  # re-evaluate models/classifier.pt, no training
+    python scripts/kaggle_push.py --seg-cv     # spleen 5-fold cross-validation only
     python scripts/kaggle_push.py --log      # print the run log
     python scripts/kaggle_push.py --fetch    # download outputs to kaggle_out/
 
@@ -73,14 +74,18 @@ def push_checkpoint(api, user, stage):
     push_dataset(api, user, MODELS_SLUG, "aiml02 released checkpoint", stage, "classifier.pt")
 
 
-def push_kernel(api, user, stage, eval_only=False):
+def push_kernel(api, user, stage, mode="full"):
     nb = stage / "kaggle_train.ipynb"
-    nb.write_bytes((ROOT / "notebooks" / "kaggle_train.ipynb").read_bytes())
+    text = (ROOT / "notebooks" / "kaggle_train.ipynb").read_text(encoding="utf-8")
+    marker = "os.environ['AIML02_MODE'] = 'full'"
+    if marker not in text:
+        raise SystemExit("notebook has no AIML02_MODE cell")
+    nb.write_text(text.replace(marker, f"os.environ['AIML02_MODE'] = '{mode}'"), encoding="utf-8")
     (stage / "kernel-metadata.json").write_text(json.dumps({
         "id": f"{user}/{KERNEL_SLUG}", "title": KERNEL_SLUG, "code_file": nb.name,
         "language": "python", "kernel_type": "notebook", "is_private": True,
         "enable_gpu": True, "enable_internet": True,
-        "dataset_sources": [f"{user}/{SRC_SLUG}"] + ([f"{user}/{MODELS_SLUG}"] if eval_only else []),
+        "dataset_sources": [f"{user}/{SRC_SLUG}"] + ([f"{user}/{MODELS_SLUG}"] if mode == "eval_only" else []),
         "competition_sources": [COMPETITION],
     }))
     resp = api.kernels_push(str(stage))
@@ -107,8 +112,11 @@ def main():
     ap.add_argument("--status", action="store_true")
     ap.add_argument("--fetch", action="store_true")
     ap.add_argument("--log", action="store_true", help="print the run log")
-    ap.add_argument("--eval-only", action="store_true",
-                    help="upload models/classifier.pt and only re-run data prep + evaluation (no training)")
+    modes = ap.add_mutually_exclusive_group()
+    modes.add_argument("--eval-only", action="store_true",
+                       help="upload models/classifier.pt and only re-run data prep + evaluation (no training)")
+    modes.add_argument("--seg-cv", action="store_true",
+                       help="only the spleen 5-fold cross-validation (medimg.seg.cv_seg); no classifier")
     args = ap.parse_args()
 
     api = KaggleApi()
@@ -129,7 +137,8 @@ def main():
             push_source(api, user, Path(src))
             if args.eval_only:
                 push_checkpoint(api, user, Path(mdl))
-            push_kernel(api, user, Path(ker), args.eval_only)
+            mode = "eval_only" if args.eval_only else "seg_cv" if args.seg_cv else "full"
+            push_kernel(api, user, Path(ker), mode)
 
 
 if __name__ == "__main__":

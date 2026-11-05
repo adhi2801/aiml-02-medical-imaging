@@ -1,6 +1,10 @@
 """Figures for the spleen model: learning curve and predicted vs. radiologist outlines on validation CTs.
 
-    python -m medimg.seg.figures_seg       (after train_seg; reads models/seg_unet3d.pt and reports/seg_history.csv)
+    python -m medimg.seg.figures_seg               final-epoch model (models/seg_last.pt): the headline number
+    python -m medimg.seg.figures_seg --ckpt best   best-validation-epoch model (models/seg_unet3d.pt), *_best outputs
+
+Why the final epoch is the headline: the best epoch is chosen on these same 8 validation CTs, so its score is biased
+upwards (selection on the evaluation set). The fixed 600-epoch schedule never looks at them.
 
 Per-case Dice/HD95 go to reports/seg_per_case.csv so the worst case can be discussed, not just the mean.
 Each case is scored twice: the raw argmax and after keeping only the largest connected component (the spleen is one
@@ -8,6 +12,7 @@ organ, so any separate blob is a false positive). HD95 is very sensitive to such
 """
 from __future__ import annotations
 
+import argparse
 import json
 from pathlib import Path
 
@@ -42,20 +47,27 @@ def keep_largest(mask: np.ndarray) -> np.ndarray:
 
 
 def learning_curve(history: pd.DataFrame) -> None:
+    """Validation Dice per epoch, marking the final epoch (reported) and the best epoch (selected, optimistic)."""
     fig, ax = plt.subplots(1, 2, figsize=(11, 4))
     ax[0].plot(history.epoch, history.train_loss)
     ax[0].set(xlabel="epoch", ylabel="Dice + CE loss", title="Training loss")
     val = history.dropna(subset=["val_dice"])
     ax[1].plot(val.epoch, val.val_dice, marker="o", ms=3)
-    best = val.loc[val.val_dice.idxmax()]
-    ax[1].axvline(best.epoch, color="grey", ls="--", lw=1)
-    ax[1].set(xlabel="epoch", ylabel="Dice", ylim=(0, 1), title=f"Validation Dice (best {best.val_dice:.3f} @ {int(best.epoch)})")
+    best, last = val.loc[val.val_dice.idxmax()], val.iloc[-1]
+    ax[1].axvline(best.epoch, color="grey", ls="--", lw=1, label=f"best {best.val_dice:.3f} @ {int(best.epoch)} (selected)")
+    ax[1].axvline(last.epoch, color="black", lw=1, label=f"final {last.val_dice:.3f} @ {int(last.epoch)} (reported)")
+    ax[1].legend(loc="lower right", fontsize=8)
+    ax[1].set(xlabel="epoch", ylabel="Dice (raw, no post-processing)", ylim=(0, 1), title="Validation Dice")
     fig.tight_layout()
     fig.savefig(FIG / "seg_learning_curve.png", dpi=150)
     plt.close(fig)
 
 
 def main() -> None:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--ckpt", choices=["final", "best"], default="final")
+    args = ap.parse_args()
+    suffix = "" if args.ckpt == "final" else "_best"
     p = load_params()
     sp = p["segmentation"]
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -63,7 +75,12 @@ def main() -> None:
     learning_curve(pd.read_csv(ROOT / "reports" / "seg_history.csv"))
 
     model = build_model().to(device).eval()
-    model.load_state_dict(torch.load(ROOT / "models" / "seg_unet3d.pt", map_location=device)["state_dict"])
+    if args.ckpt == "final":  # the resume checkpoint train_seg writes after every epoch; after training = last epoch
+        state = torch.load(ROOT / "models" / "seg_last.pt", map_location=device, weights_only=False)
+        model.load_state_dict(state["model"])
+        print(f"final-epoch model: epoch {state['epoch']}")
+    else:
+        model.load_state_dict(torch.load(ROOT / "models" / "seg_unet3d.pt", map_location=device)["state_dict"])
     split = DecathlonDataset(str(ROOT / sp["root_dir"]), sp["task"], "validation", download=False,
                              val_frac=0.2, seed=p["seed"], cache_rate=0.0).data
     ds = PersistentDataset(split, transforms(sp, False), cache_dir=ROOT / "data" / "processed" / "msd_cache" / "val",
@@ -92,12 +109,13 @@ def main() -> None:
             panels.append((rows[-1], img[..., z], gt[..., z], pr[..., z]))
 
     per_case = pd.DataFrame(rows).sort_values("dice")
-    per_case.to_csv(ROOT / "reports" / "seg_per_case.csv", index=False)
+    per_case.to_csv(ROOT / "reports" / f"seg_per_case{suffix}.csv", index=False)
     print(per_case.to_string(index=False))
     summary = {k: round(float(per_case[k].mean()), 4) for k in ("dice", "hd95_mm", "dice_raw", "hd95_raw_mm")}
     summary |= {"dice_min": float(per_case.dice.min()), "n_cases": len(per_case),
-                "postprocessing": "largest connected component"}
-    (ROOT / "reports" / "seg_postproc.json").write_text(json.dumps(summary, indent=2))
+                "postprocessing": "largest connected component",
+                "checkpoint": "final epoch (no selection)" if args.ckpt == "final" else "best validation epoch (optimistic)"}
+    (ROOT / "reports" / f"seg_postproc{suffix}.json").write_text(json.dumps(summary, indent=2))
     print(json.dumps(summary))
 
     # Best, median and worst validation case, so the figure is honest about failures too.
@@ -116,7 +134,7 @@ def main() -> None:
         ax.axis("off")
     fig.suptitle("Spleen on validation CT: radiologist (green) vs. model (red dashed)", fontsize=13)
     fig.tight_layout(rect=(0, 0, 1, 0.93))  # keep the suptitle clear of the panel titles
-    fig.savefig(FIG / "seg_examples.png", dpi=130)
+    fig.savefig(FIG / f"seg_examples{suffix}.png", dpi=130)
     plt.close(fig)
 
 
