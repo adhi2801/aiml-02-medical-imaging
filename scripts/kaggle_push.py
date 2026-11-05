@@ -45,8 +45,11 @@ def push_dataset(api, user, slug, title, stage, notes):
         api.dataset_create_new(str(stage), public=False, quiet=True)
     # A kernel started while the new version is still processing would run the previous files
     for _ in range(60):
-        if str(api.dataset_status(f"{user}/{slug}")).lower() == "ready":
-            break
+        try:
+            if str(api.dataset_status(f"{user}/{slug}")).lower() == "ready":
+                break
+        except Exception:  # a brand-new dataset answers 403 for a few seconds
+            pass
         time.sleep(5)
     else:
         raise SystemExit(f"{slug}: dataset version still not ready after 5 min; re-run later")
