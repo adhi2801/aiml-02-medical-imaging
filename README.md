@@ -16,7 +16,10 @@ A separate **MONAI 3D U-Net** segments the spleen in abdominal CT.
 
 ## Results
 
-All numbers are produced by `dvc repro` and read from `reports/` (never typed by hand).
+Every number below is written by the pipeline stages in `dvc.yaml` into `reports/` and copied from there, never typed
+from memory. The classifier and the 600-epoch spleen model were trained on a Kaggle T4 by
+[`notebooks/kaggle_train.ipynb`](notebooks/kaggle_train.ipynb), which runs the same stages. Anyone can re-check the
+released classifier without retraining it: `python scripts/kaggle_push.py --eval-only`.
 
 | Metric (held-out test set) | Value |
 |---|---|
@@ -28,7 +31,20 @@ All numbers are produced by `dvc repro` and read from `reports/` (never typed by
 | Spleen Dice / HD95 (mm), 8 validation CTs, largest-component post-processing | **0.939 / 3.2** (raw 0.930 / 22.6; worst case 0.925). 600 epochs on a Kaggle T4, best epoch 224. The same code for 200 epochs on the laptop GTX 1650 reaches 0.912 / 6.1 (`reports/seg_laptop_200ep/`). MSD has no public test labels, so this is validation |
 
 Subgroup performance (sex, age band, AP vs PA view) is in `reports/subgroups.csv` and discussed in the
-[model card](docs/MODEL_CARD.md).
+[model card](docs/MODEL_CARD.md). In short: the model beats the metadata-only baseline *within* AP films (0.838) and
+*within* PA films (0.862), so it is reading the lungs. It is weaker for patients aged 60+ (0.816, CI 0.787–0.848), and at
+the shared threshold PA-view sensitivity is only 0.58.
+
+![ROC, precision-recall and reliability curves on the held-out test set](reports/figures/test_curves.png)
+
+![Grad-CAM heatmaps against radiologist boxes: true positives, misses and false alarms](reports/figures/gradcam_gallery.png)
+
+*On the true positives the heatmap sits on the opacity. On the misses (middle row) it drifts to the shoulders and the
+burned-in side markers. Three of those four misses are PA films and two are patients aged 60+, the same groups where the
+subgroup table shows weaker performance. The false alarms (bottom row) are confident (p ≥ 0.96), which is why every
+output goes to a radiologist for review.*
+
+![Spleen segmentation on validation CT: worst, median and best case](reports/seg_figures/seg_examples.png)
 
 ## What makes this more than a demo
 
