@@ -20,12 +20,12 @@ All numbers are produced by `dvc repro` and read from `reports/` (never typed by
 
 | Metric (held-out test set) | Value |
 |---|---|
-| AUROC (95% bootstrap CI) | _from `reports/metrics.json`_ |
-| Sensitivity / Specificity @ val-selected threshold | _…_ |
-| ECE before → after temperature scaling | _…_ |
-| Grad-CAM pointing game (hit inside radiologist box) | _…_ |
-| Shortcut check: AUROC from view / view+sex+age alone (no pixels) | _…_ |
-| Spleen Dice / HD95 (mm), 8 validation CTs, largest-component post-processing | **0.912 / 6.1** (raw 0.893 / 95.3; worst case 0.770). Best epoch 184 of 200. MSD has no public test labels, so this is validation |
+| AUROC (95% bootstrap CI), 4,003 test images, 22.5 % positive | **0.882 (0.870 – 0.894)** · AUPRC 0.699 |
+| Sensitivity / Specificity @ val-selected threshold | **0.839 / 0.759** (PPV 0.50, NPV 0.94) |
+| ECE before → after temperature scaling | 0.073 → 0.071 (T = 1.29; the model was already close to calibrated) |
+| Grad-CAM pointing game (hit inside radiologist box) | 54 % of positive test images (mean IoU 0.24) |
+| Shortcut check: AUROC from view / view+sex+age alone (no pixels) | 0.707 / 0.725, so the image adds about +0.16 AUROC over metadata |
+| Spleen Dice / HD95 (mm), 8 validation CTs, largest-component post-processing | **0.939 / 3.2** (raw 0.930 / 22.6; worst case 0.925). 600 epochs on a Kaggle T4, best epoch 224. The same code for 200 epochs on the laptop GTX 1650 reaches 0.912 / 6.1 (`reports/seg_laptop_200ep/`). MSD has no public test labels, so this is validation |
 
 Subgroup performance (sex, age band, AP vs PA view) is in `reports/subgroups.csv` and discussed in the
 [model card](docs/MODEL_CARD.md).

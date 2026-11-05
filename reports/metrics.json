@@ -1,0 +1,36 @@
+{
+  "test_n": 4003,
+  "test_prevalence": 0.2253,
+  "auroc": 0.8823,
+  "auroc_ci95": [
+    0.8698,
+    0.8944
+  ],
+  "auprc": 0.6991,
+  "temperature": 1.289,
+  "threshold": 0.3171,
+  "ece_before": 0.0729,
+  "ece_after": 0.0705,
+  "brier_after": 0.1194,
+  "tp": 757,
+  "fp": 748,
+  "fn": 145,
+  "tn": 2353,
+  "sensitivity": 0.8392,
+  "specificity": 0.7588,
+  "ppv": 0.503,
+  "npv": 0.942,
+  "auroc_gap_ap_minus_pa": -0.0235,
+  "baseline_view_only_auroc": 0.7065,
+  "baseline_view_only_auroc_ci95": [
+    0.689,
+    0.7223
+  ],
+  "baseline_metadata_auroc": 0.7249,
+  "baseline_metadata_auroc_ci95": [
+    0.7056,
+    0.7438
+  ],
+  "gradcam_pointing_game": 0.5443,
+  "gradcam_mean_iou": 0.2369
+}

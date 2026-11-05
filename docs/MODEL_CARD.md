@@ -19,9 +19,40 @@
 - **Split:** 70/15/15, stratified on label × view position. One image per patient, so there is no patient leakage.
 
 ## Metrics
-Filled from `reports/metrics.json` and `reports/subgroups.csv` after `dvc repro`. Report each with its 95% CI:
-AUROC, AUPRC, sensitivity, specificity, PPV, NPV, ECE (before/after calibration), Brier score,
-Grad-CAM pointing game, and Grad-CAM IoU.
+Held-out test split: 4,003 images, 22.5 % positive. DenseNet-121 at 384 px, best validation AUROC 0.891 at epoch 8 of 11
+(early stopping), trained on a Kaggle T4. Source: `reports/metrics.json`, `reports/subgroups.csv`.
+
+| Metric | Value |
+|---|---|
+| AUROC (95 % bootstrap CI) | 0.882 (0.870 – 0.894) |
+| AUPRC | 0.699 (chance = 0.225) |
+| Sensitivity / specificity at the validation-selected threshold (0.317) | 0.839 / 0.759 |
+| PPV / NPV | 0.503 / 0.942 |
+| ECE before → after temperature scaling (T = 1.29); Brier after | 0.073 → 0.071; 0.119 |
+| Grad-CAM pointing game / mean IoU vs radiologist boxes | 0.544 / 0.237 |
+| Metadata-only baseline: view / view + sex + age (no pixels) | 0.707 / 0.725 |
+
+| Subgroup | n | Prevalence | AUROC (95 % CI) | Sens / Spec |
+|---|---|---|---|---|
+| Female | 1,672 | 0.21 | 0.892 (0.875 – 0.908) | 0.84 / 0.77 |
+| Male | 2,331 | 0.24 | 0.875 (0.859 – 0.890) | 0.84 / 0.75 |
+| Age < 40 | 1,321 | 0.27 | 0.909 (0.893 – 0.924) | 0.87 / 0.78 |
+| Age 40–59 | 1,702 | 0.21 | 0.889 (0.870 – 0.905) | 0.85 / 0.77 |
+| Age 60+ | 980 | 0.20 | **0.816 (0.787 – 0.848)** | 0.75 / 0.73 |
+| AP view | 1,826 | 0.38 | 0.838 (0.820 – 0.855) | 0.91 / 0.54 |
+| PA view | 2,177 | 0.09 | 0.862 (0.837 – 0.884) | **0.58** / 0.88 |
+
+**What the numbers say:**
+- **The model reads the image, not just the acquisition.** Metadata alone reaches 0.725. The image model reaches 0.882 overall,
+  and 0.84–0.86 *within* AP films and *within* PA films, where the view shortcut carries no information.
+- **Patients aged 60+ are served worse.** Their AUROC CI (0.787 – 0.848) does not overlap the under-40 group's. Plausible causes
+  are more co-morbid findings (effusion, cardiomegaly, chronic changes) that look like opacity. This needs targeted error analysis
+  before any use on older patients.
+- **One threshold does not fit both views.** With the shared threshold, sensitivity is 0.91 on AP films but only 0.58 on PA films,
+  where prevalence is 9 %. A per-view threshold, or explicitly reporting this trade-off to the reader, would be the next step.
+- **Calibration was already good.** Temperature scaling barely moved ECE (0.073 → 0.071).
+- **Grad-CAM is only partly on target.** The heatmap peak falls inside a radiologist box in 54 % of positive images. That is
+  consistent with limitation 5 below, and the reason the UI shows heatmaps as a review aid, not as a finding.
 
 ## Known limitations and bias risks
 1. **View-position shortcut.** AP (portable, bedside) films come from sicker inpatients and have much higher opacity
@@ -52,9 +83,14 @@ Evaluated with sliding-window inference using Dice and HD95. Post-processing kee
 since the spleen is a single organ. Raw and post-processed scores are both reported (`reports/seg_postproc.json`,
 `reports/seg_per_case.csv`), because a few distant false-positive blobs inflate HD95 by tens of millimetres.
 
-**Context:** MONAI's reference bundle for this task reports a mean Dice of about 0.96 on its own split, after hundreds to
-over a thousand epochs on data-centre GPUs. This model was trained for 200 epochs on a 4 GB laptop GPU, so a gap is
-expected. The splits also differ, so the numbers are not directly comparable.
+**Results (8 validation CTs):** trained for 600 epochs on a Kaggle T4 (best epoch 224), it reaches Dice **0.939** and HD95
+**3.2 mm** after post-processing (raw 0.930 / 22.6 mm). Every case scores at least 0.925. The same code trained for 200 epochs
+on a 4 GB laptop GTX 1650 reached 0.912 / 6.1 mm with a worst case of 0.770 (`reports/seg_laptop_200ep/`), so the longer
+schedule mostly fixed the hardest case. Post-processing matters most for HD95: on spleen_53 it removes a distant
+false-positive blob and takes HD95 from 155 mm to 2.1 mm.
+
+**Context:** MONAI's reference bundle for this task reports a mean Dice of about 0.96 on its own split. The splits differ,
+so the numbers are not directly comparable, and with 8 validation volumes one case moves the mean by about 0.01.
 
 Limitations: only 41 labeled volumes in total (33 train / 8 validation) from one institution, a single organ,
 portal-venous-phase CT only. The validation set is small, so per-case results are listed rather than only the mean.

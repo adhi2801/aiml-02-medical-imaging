@@ -1,0 +1,18 @@
+{
+  "n_images": 26684,
+  "prevalence": 0.2253,
+  "by_split": {
+    "test": {
+      "count": 4003,
+      "mean": 0.2253
+    },
+    "train": {
+      "count": 18678,
+      "mean": 0.2253
+    },
+    "val": {
+      "count": 4003,
+      "mean": 0.2253
+    }
+  }
+}

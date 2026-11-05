@@ -1,0 +1,9 @@
+{
+  "dice": 0.912,
+  "hd95_mm": 6.0537,
+  "dice_raw": 0.8931,
+  "hd95_raw_mm": 95.2687,
+  "dice_min": 0.7697,
+  "n_cases": 8,
+  "postprocessing": "largest connected component"
+}

@@ -1,7 +1,7 @@
 {
-  "val_dice": 0.8931,
-  "val_hd95_mm": 95.28,
-  "best_epoch": 184,
+  "val_dice": 0.9304,
+  "val_hd95_mm": 22.61,
+  "best_epoch": 224,
   "n_train": 33,
   "n_val": 8
 }
