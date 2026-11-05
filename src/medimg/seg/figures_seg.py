@@ -114,8 +114,8 @@ def main() -> None:
         ax.contour(view(pr), levels=[0.5], colors="red", linewidths=1.2, linestyles="--")
         ax.set_title(f"{tag}: {row['case']}\nDice {row['dice']:.3f} · HD95 {row['hd95_mm']:.1f} mm")
         ax.axis("off")
-    fig.suptitle("Spleen on validation CT: radiologist (green) vs. model (red dashed)")
-    fig.tight_layout()
+    fig.suptitle("Spleen on validation CT: radiologist (green) vs. model (red dashed)", fontsize=13)
+    fig.tight_layout(rect=(0, 0, 1, 0.93))  # keep the suptitle clear of the panel titles
     fig.savefig(FIG / "seg_examples.png", dpi=130)
     plt.close(fig)
 

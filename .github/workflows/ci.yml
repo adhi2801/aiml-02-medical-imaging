@@ -20,6 +20,8 @@ jobs:
             "monai>=1.4" nibabel "pydicom>=3.0" pandas scikit-learn scipy pillow opencv-python-headless \
             matplotlib pyyaml tqdm pytest -r services/inference/requirements.txt -e .
           .venv/bin/python -c "import torch, torchvision; print(torch.__version__, torchvision.__version__)"
+      - name: Byte-compile every module (catches syntax errors in scripts the tests do not import)
+        run: .venv/bin/python -m compileall -q src scripts tests services
       - run: .venv/bin/python -m pytest -q
 
   web:

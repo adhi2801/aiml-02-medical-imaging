@@ -157,6 +157,9 @@ def main() -> None:
     print(subgroups.to_string(index=False))
 
 
+KIND_NAMES = {"TP": "True positive", "FN": "Missed (false negative)", "FP": "False alarm (false positive)"}
+
+
 def save_gallery(gallery: dict, image_dir) -> None:
     kinds = [k for k in ("TP", "FN", "FP") if gallery[k]]
     if not kinds:
@@ -174,9 +177,11 @@ def save_gallery(gallery: dict, image_dir) -> None:
             s = img.shape[0] / row.orig_h
             for x, y, w, h in json.loads(row.boxes):
                 ax.add_patch(plt.Rectangle((x * s, y * s), w * s, h * s, fill=False, ec="lime", lw=2))
-            ax.set_title(f"{kind}  p={row.prob:.2f}  {row.view}", fontsize=10)
-    fig.suptitle("Grad-CAM vs radiologist boxes (green)", fontsize=14)
-    fig.tight_layout()
+            # row["view"], not row.view: pandas resolves .view to the Series.view method, not the column
+            ax.set_title(f"{KIND_NAMES[kind]}  p={row.prob:.2f}\n{row['view']} view · {row['sex']} · age {row['age_band']}",
+                         fontsize=10)
+    fig.suptitle("Grad-CAM heatmaps vs radiologist boxes (green) on held-out test X-rays", fontsize=14)
+    fig.tight_layout(rect=(0, 0, 1, 0.97))
     fig.savefig(FIG / "gradcam_gallery.png", dpi=110)
     plt.close(fig)
 
