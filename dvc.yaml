@@ -95,3 +95,41 @@ stages:
           x: case
           y: dice
           cache: false
+
+  seg_cv:   # headline spleen number: every CT scored once, no checkpoint selection (run on Kaggle: kaggle_push.py --seg-cv)
+    cmd: python -m medimg.seg.cv_seg
+    deps:
+      - src/medimg/seg/cv_seg.py
+      - src/medimg/seg/train_seg.py
+    params:
+      - seed
+      - segmentation
+      - segmentation_cv
+    outs:
+      - models/seg_cv_fold0.pt:
+          persist: true
+      - models/seg_cv_fold1.pt:
+          persist: true
+      - models/seg_cv_fold2.pt:
+          persist: true
+      - models/seg_cv_fold3.pt:
+          persist: true
+      - models/seg_cv_fold4.pt:
+          persist: true
+      - reports/seg_cv_per_case.csv:
+          cache: false
+    metrics:
+      - reports/seg_cv.json:
+          cache: false
+
+  seg_cv_figures:
+    cmd: python -m medimg.seg.figures_cv
+    deps:
+      - src/medimg/seg/figures_cv.py
+      - reports/seg_cv_per_case.csv
+      - reports/seg_cv.json
+    outs:
+      - reports/seg_figures/seg_cv_per_case.png:
+          cache: false
+      - reports/seg_figures/seg_cv_failures.png:
+          cache: false

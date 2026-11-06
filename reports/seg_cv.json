@@ -1,0 +1,33 @@
+{
+  "n_cases": 41,
+  "folds": 5,
+  "epochs_per_fold": 300,
+  "selection": "none (fixed schedule; SWA of the second half, BN recomputed)",
+  "postprocessing": "largest connected component",
+  "final": {
+    "dice_mean": 0.9173,
+    "dice_sd": 0.0864,
+    "dice_median": 0.9445,
+    "dice_min": 0.4781,
+    "dice_ci95": [
+      0.8872,
+      0.9396
+    ],
+    "hd95_mm_median": 2.92,
+    "dice_raw_mean": 0.9073,
+    "cases_below_0.9": 6
+  },
+  "swa": {
+    "dice_mean": 0.919,
+    "dice_sd": 0.0923,
+    "dice_median": 0.9437,
+    "dice_min": 0.3925,
+    "dice_ci95": [
+      0.8861,
+      0.9405
+    ],
+    "hd95_mm_median": 2.92,
+    "dice_raw_mean": 0.9086,
+    "cases_below_0.9": 7
+  }
+}

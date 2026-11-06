@@ -28,7 +28,7 @@ released classifier without retraining it: `python scripts/kaggle_push.py --eval
 | ECE before → after temperature scaling | 0.073 → 0.071 (T = 1.29; the model was already close to calibrated) |
 | Grad-CAM pointing game (hit inside radiologist box) | 54 % of positive test images (mean IoU 0.24) |
 | Shortcut check: AUROC from view / view+sex+age alone (no pixels) | 0.707 / 0.725, so the image adds about +0.16 AUROC over metadata |
-| Spleen Dice / HD95 (mm), 8 validation CTs, largest-component post-processing, **final epoch (no checkpoint selection)** | **0.885 / 6.7** (median 0.944; 6 of 8 CTs ≥ 0.94; worst case spleen_26 0.53). 600 epochs on a Kaggle T4. Picking the best of 120 validation checkpoints would report 0.939, but that selects on the same 8 CTs, so it is optimistic. 5-fold cross-validation over all 41 CTs is in progress |
+| Spleen Dice, **5-fold cross-validation over all 41 CTs** (each scored once by a model that never trained on it; fixed 300-epoch schedule, SWA weights, no checkpoint selection; largest-component post-processing) | **0.919 ± 0.092** (95 % CI 0.886 – 0.941), median 0.944, HD95 median 2.9 mm. 34 of 41 CTs ≥ 0.90; worst spleen_47 0.39 (see failure analysis below). The final-epoch weights score 0.917 ± 0.086. The earlier single 33/8 split gave 0.885 (final epoch) or 0.939 (best epoch, chosen on the same 8 CTs, so optimistic) |
 
 Subgroup performance (sex, age band, AP vs PA view) is in `reports/subgroups.csv` and discussed in the
 [model card](docs/MODEL_CARD.md). In short: the model beats the metadata-only baseline *within* AP films (0.838) and
@@ -44,7 +44,15 @@ burned-in side markers. Three of those four misses are PA films and two are pati
 subgroup table shows weaker performance. The false alarms (bottom row) are confident (p ≥ 0.96), which is why every
 output goes to a radiologist for review.*
 
-![Spleen segmentation on validation CT: worst, median and best case](reports/seg_figures/seg_examples.png)
+![Per-case Dice of the spleen 5-fold cross-validation](reports/seg_figures/seg_cv_per_case.png)
+
+![The three lowest-Dice CTs in cross-validation, axial and coronal](reports/seg_figures/seg_cv_failures.png)
+
+*Failure analysis. spleen_47 (Dice 0.39) is an enlarged 426 mL spleen, and the model labels only 106 mL of it. Size alone
+does not explain the miss: the four larger spleens in the dataset (427–502 mL) score 0.93–0.96. Its parenchyma looks
+patchier than the other cases, which may be a different enhancement phase. spleen_44 looks weakly enhanced, and the model
+under-segments it. Across all 41 CTs, smaller spleens score lower (Spearman ρ = 0.44 between volume and Dice, p = 0.004),
+as expected, because a few boundary voxels weigh more on a small organ.*
 
 ## What makes this more than a demo
 

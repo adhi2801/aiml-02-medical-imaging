@@ -83,26 +83,40 @@ Evaluated with sliding-window inference using Dice and HD95. Post-processing kee
 since the spleen is a single organ. Raw and post-processed scores are both reported (`reports/seg_postproc.json`,
 `reports/seg_per_case.csv`), because a few distant false-positive blobs inflate HD95 by tens of millimetres.
 
-**Results (8 validation CTs, final epoch, no checkpoint selection):** after 600 epochs on a Kaggle T4, mean Dice
-**0.885** and HD95 **6.7 mm** after post-processing (raw 0.881 / 25.7 mm). The median is 0.944 and 6 of 8 CTs score at
-least 0.94, but spleen_26 fails at 0.53 and spleen_49 reaches 0.86 (`reports/seg_per_case.csv`).
+**Headline result: 5-fold cross-validation over all 41 labelled CTs** (`medimg.seg.cv_seg`, `reports/seg_cv.json`,
+`reports/seg_cv_per_case.csv`). Every CT is scored exactly once, by a model that never trained on it. Each fold trains
+for a fixed 300 epochs with no validation during training. The scored weights are the stochastic weight average (SWA) of
+the second half, with BatchNorm statistics recomputed afterwards, and this choice was fixed in the code before the run.
+Mean Dice **0.919 ± 0.092** (95 % bootstrap CI 0.886 – 0.941), median 0.944, median HD95 **2.9 mm**, with largest-component
+post-processing (raw mean Dice 0.909). 34 of 41 CTs reach Dice ≥ 0.90. The final-epoch weights of the same folds score
+0.917 ± 0.086, so SWA neither helps nor hurts here.
 
-**Why the final epoch and not the best one:** the best of the 120 validation checkpoints (epoch 224) scores 0.939, with
-spleen_26 at 0.93 (`reports/seg_postproc_best.json`). That checkpoint was chosen *on these same 8 CTs*, so its score is
-biased upwards. The gap between 0.939 and 0.885, and one case swinging from 0.93 to 0.53 between epochs, show that a single
-8-case split cannot support a precise number either way. **5-fold cross-validation** (`medimg.seg.cv_seg`) therefore scores
-every one of the 41 labelled CTs exactly once, with a model that never trained on it, at a fixed schedule with
-weight averaging (SWA) and no selection. Its mean ± SD will replace this paragraph's numbers.
+**Failure analysis** (`reports/seg_figures/seg_cv_failures.png`):
+- **spleen_47, Dice 0.39:** an enlarged spleen (426 mL against a dataset median of 210 mL), of which the model labels
+  106 mL. Size alone does not explain it, because the four larger spleens (427–502 mL) score 0.93–0.96. Its parenchyma
+  looks patchier than the other cases, which may be a different contrast phase. This is a visual impression, not a
+  radiologist's read.
+- **spleen_44, Dice 0.77:** the scan looks weakly enhanced, and the model under-segments the spleen (80 of 119 mL).
+- Across all 41 CTs, smaller spleens score lower (Spearman ρ = 0.44 between volume and Dice, p = 0.004). This is partly
+  a property of Dice, since a few boundary voxels weigh more on a small organ.
+Clinical reading: an enlarged or atypically enhancing spleen is exactly the case where a volume estimate matters most.
+Any volumetry use would need case-level QA, for example routing low-confidence or fragmented predictions to a human.
+
+**Earlier single-split numbers, kept for transparency:** with the MONAI 33/8 split and 600 epochs, the final epoch scored
+0.885 / HD95 6.7 mm on the 8 validation CTs (spleen_26 at 0.53). The best of 120 validation checkpoints scored 0.939, but
+that checkpoint was chosen on the same 8 CTs, so it is optimistic (`reports/seg_postproc_best.json`). With only 8 cases,
+one case swinging from 0.93 to 0.53 between epochs moved the mean by 0.05. That instability is why the cross-validation
+above is the reported number. In cross-validation spleen_26 scores 0.86.
 
 Post-processing matters most for HD95: on spleen_53 it removes a distant false-positive blob and takes HD95 from 154 mm to
 2.0 mm. A 200-epoch run on a 4 GB laptop GTX 1650 is kept for reference in `reports/seg_laptop_200ep/` (best-epoch
 selection, so optimistic in the same way).
 
 **Context:** MONAI's reference bundle for this task reports a mean Dice of about 0.96 on its own split. The splits differ,
-so the numbers are not directly comparable, and with 8 validation volumes one case moves the mean by about 0.01.
+so the numbers are not directly comparable.
 
-Limitations: only 41 labeled volumes in total (33 train / 8 validation) from one institution, a single organ,
-portal-venous-phase CT only. The validation set is small, so per-case results are listed rather than only the mean.
+Limitations: only 41 labeled volumes in total (cross-validated, 32–33 training CTs per fold) from one institution, a single organ,
+described as portal-venous-phase CT (a few scans look differently enhanced; see the failure analysis). The dataset is small, so per-case results are listed rather than only the mean, and no external test set exists.
 
 ## Regulatory context (for orientation only)
 This prototype is not a regulated device. The design follows ideas from the FDA / Health Canada / MHRA
