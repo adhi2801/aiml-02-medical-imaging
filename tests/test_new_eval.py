@@ -58,7 +58,7 @@ def test_view_thresholds_fall_back_when_a_view_has_no_val_positives():
     threshold for that view and say so, instead of crashing the evaluation stage."""
     val = pd.DataFrame({"view": ["AP", "AP", "PA", "PA"], "label": [1, 0, 0, 0]})
     test = pd.DataFrame({"view": ["AP", "PA", "PA"], "label": [1, 0, 0]})
-    out = view_thresholds(val, np.array([0.9, 0.2, 0.3, 0.1]), test, np.array([0.8, 0.4, 0.2]), shared=0.5)
+    out = view_thresholds(val, np.array([0.9, 0.2, 0.3, 0.1]), test, np.array([0.95, 0.4, 0.2]), shared=0.5)
     assert out["views"]["AP"]["fitted_on_val"] and out["views"]["AP"]["threshold"] == 0.9
     assert not out["views"]["PA"]["fitted_on_val"] and out["views"]["PA"]["threshold"] == 0.5
     assert out["overall_test_per_view_policy"] == {"sensitivity": 1.0, "specificity": 1.0}
