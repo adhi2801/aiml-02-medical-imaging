@@ -30,9 +30,15 @@ class Engine:
         self.img_size = ckpt["img_size"]
         calib = json.loads(calibration_path.read_text())
         self.temperature, self.threshold = calib["temperature"], calib["threshold"]
+        # Equal-opportunity thresholds per view (AP / PA), fit on validation by evaluate_cls; any other or missing
+        # view falls back to the shared threshold. Each result stores the threshold it was judged against.
+        self.view_thresholds = calib.get("view_thresholds", {})
         digest = hashlib.sha256(model_path.read_bytes()).hexdigest()[:8]
         self.version = f"{ckpt['arch']}-{digest}"
         torch.set_num_threads(max(1, torch.get_num_threads()))
+
+    def threshold_for(self, view: str | None) -> float:
+        return float(self.view_thresholds.get(view or "", self.threshold))
 
     @staticmethod
     def is_ai_output(ds: pydicom.Dataset) -> bool:
@@ -49,6 +55,7 @@ class Engine:
         prob = float(torch.sigmoid(logit / self.temperature)[0])
         latency_ms = (time.perf_counter() - t0) * 1000
         cam = cam[0].cpu().numpy()
+        thr = self.threshold_for(meta.view)
 
         # Artifacts for the web viewer: the scan and a transparent heatmap at the same resolution.
         out_dir.mkdir(parents=True, exist_ok=True)
@@ -61,8 +68,8 @@ class Engine:
             "record": {
                 "instance_id": instance_id, "study_uid": meta.study_uid, "sop_uid": meta.sop_uid,
                 "patient_id": meta.patient_id, "sex": meta.sex, "age": meta.age, "view": meta.view,
-                "probability": round(prob, 4), "threshold": round(self.threshold, 4),
-                "ai_label": "opacity" if prob >= self.threshold else "no_opacity",
+                "probability": round(prob, 4), "threshold": round(thr, 4),
+                "ai_label": "opacity" if prob >= thr else "no_opacity",
                 "model_version": self.version, "latency_ms": round(latency_ms, 1),
             },
             "secondary_capture": self.secondary_capture(ds, overlay(disp, cam), prob),

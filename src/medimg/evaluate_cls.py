@@ -54,6 +54,38 @@ def subgroup_table(df: pd.DataFrame, thr: float, iters: int) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+def threshold_for_sensitivity(y: np.ndarray, p: np.ndarray, target: float) -> float:
+    """Highest threshold whose sensitivity on (y, p) is at least `target` (keeps specificity as high as possible)."""
+    pos = np.sort(p[y == 1])[::-1]
+    k = int(np.ceil(target * len(pos))) - 1
+    return float(pos[min(max(k, 0), len(pos) - 1)])
+
+
+def view_thresholds(val_df: pd.DataFrame, val_p: np.ndarray, test_df: pd.DataFrame, test_p: np.ndarray,
+                    shared: float) -> dict:
+    """Equal opportunity across views: per-view thresholds fit on VAL so that AP and PA films reach the sensitivity
+    the shared threshold reaches on all of VAL. Test results for both policies show what the fix costs."""
+    target = confusion_stats(val_df.label.values, val_p, shared)["sensitivity"]
+    out = {"target_sensitivity_from_val": target, "views": {}}
+    for view in ("AP", "PA"):
+        vm, tm = (val_df.view == view).values, (test_df.view == view).values
+        t = threshold_for_sensitivity(val_df.label.values[vm], val_p[vm], target)
+        yt, pt = test_df.label.values[tm], test_p[tm]
+        out["views"][view] = {
+            "threshold": round(t, 4), "test_n": int(tm.sum()),
+            "shared_threshold": {k: confusion_stats(yt, pt, shared)[k] for k in ("sensitivity", "specificity", "ppv")},
+            "per_view_threshold": {k: confusion_stats(yt, pt, t)[k] for k in ("sensitivity", "specificity", "ppv")},
+        }
+    per_view = np.where(test_df.view.values == "AP", out["views"]["AP"]["threshold"], out["views"]["PA"]["threshold"])
+    y = test_df.label.values
+    pred = test_p >= per_view
+    tp, fn = int((pred & (y == 1)).sum()), int((~pred & (y == 1)).sum())
+    tn, fp = int((~pred & (y == 0)).sum()), int((pred & (y == 0)).sum())
+    out["overall_test_per_view_policy"] = {"sensitivity": round(tp / (tp + fn), 4),
+                                           "specificity": round(tn / (tn + fp), 4)}
+    return out
+
+
 def plot_curves(y, p_raw, p_cal, bins):
     fpr, tpr, _ = roc_curve(y, p_cal)
     prec, rec, _ = precision_recall_curve(y, p_cal)
@@ -110,6 +142,9 @@ def main() -> None:
         **confusion_stats(test_y, p_cal, thr),
     }
 
+    vt = view_thresholds(val_df, sigmoid(val_logits / T), test_df, p_cal, thr)
+    (ROOT / "reports" / "view_thresholds.json").write_text(json.dumps(vt, indent=2))
+
     test_df = test_df.assign(prob=p_cal, age_band=test_df.age.map(age_band))
     subgroups = subgroup_table(test_df, thr, ep["bootstrap_iters"])
     subgroups.to_csv(ROOT / "reports" / "subgroups.csv", index=False)
@@ -152,7 +187,9 @@ def main() -> None:
 
     plot_curves(test_y, p_raw, p_cal, ep["ece_bins"])
     (ROOT / "reports" / "metrics.json").write_text(json.dumps(metrics, indent=2))
-    (ROOT / "models" / "calibration.json").write_text(json.dumps({"temperature": T, "threshold": thr}, indent=2))
+    (ROOT / "models" / "calibration.json").write_text(json.dumps(
+        {"temperature": T, "threshold": thr,
+         "view_thresholds": {v: r["threshold"] for v, r in vt["views"].items()}}, indent=2))
     print(json.dumps(metrics, indent=2))
     print(subgroups.to_string(index=False))
 

@@ -29,6 +29,7 @@ SRC_SLUG = "aiml02-src"
 KERNEL_SLUG = "aiml02-train"
 MODELS_SLUG = "aiml02-models"
 COMPETITION = "rsna-pneumonia-detection-challenge"
+CHEXPERT = "ashery/chexpert"  # CheXpert-v1.0-small, for external validation in --eval-only
 
 
 def push_dataset(api, user, slug, title, stage, notes):
@@ -85,7 +86,7 @@ def push_kernel(api, user, stage, mode="full"):
         "id": f"{user}/{KERNEL_SLUG}", "title": KERNEL_SLUG, "code_file": nb.name,
         "language": "python", "kernel_type": "notebook", "is_private": True,
         "enable_gpu": True, "enable_internet": True,
-        "dataset_sources": [f"{user}/{SRC_SLUG}"] + ([f"{user}/{MODELS_SLUG}"] if mode == "eval_only" else []),
+        "dataset_sources": [f"{user}/{SRC_SLUG}"] + ([f"{user}/{MODELS_SLUG}", CHEXPERT] if mode == "eval_only" else []),
         "competition_sources": [COMPETITION],
     }))
     resp = api.kernels_push(str(stage))
@@ -114,7 +115,8 @@ def main():
     ap.add_argument("--log", action="store_true", help="print the run log")
     modes = ap.add_mutually_exclusive_group()
     modes.add_argument("--eval-only", action="store_true",
-                       help="upload models/classifier.pt and only re-run data prep + evaluation (no training)")
+                       help="upload models/classifier.pt; re-run evaluation, CheXpert external validation and the demo "
+                            "pack export (no training)")
     modes.add_argument("--seg-cv", action="store_true",
                        help="only the spleen 5-fold cross-validation (medimg.seg.cv_seg); no classifier")
     args = ap.parse_args()
