@@ -54,9 +54,12 @@ def subgroup_table(df: pd.DataFrame, thr: float, iters: int) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-def threshold_for_sensitivity(y: np.ndarray, p: np.ndarray, target: float) -> float:
-    """Highest threshold whose sensitivity on (y, p) is at least `target` (keeps specificity as high as possible)."""
+def threshold_for_sensitivity(y: np.ndarray, p: np.ndarray, target: float) -> float | None:
+    """Highest threshold whose sensitivity on (y, p) is at least `target` (keeps specificity as high as possible).
+    None when there are no positives to fit on; the caller then keeps the shared threshold."""
     pos = np.sort(p[y == 1])[::-1]
+    if len(pos) == 0 or target is None:
+        return None
     k = int(np.ceil(target * len(pos))) - 1
     return float(pos[min(max(k, 0), len(pos) - 1)])
 
@@ -70,9 +73,11 @@ def view_thresholds(val_df: pd.DataFrame, val_p: np.ndarray, test_df: pd.DataFra
     for view in ("AP", "PA"):
         vm, tm = (val_df.view == view).values, (test_df.view == view).values
         t = threshold_for_sensitivity(val_df.label.values[vm], val_p[vm], target)
+        fitted = t is not None
+        t = t if fitted else shared
         yt, pt = test_df.label.values[tm], test_p[tm]
         out["views"][view] = {
-            "threshold": round(t, 4), "test_n": int(tm.sum()),
+            "threshold": round(t, 4), "fitted_on_val": fitted, "test_n": int(tm.sum()),
             "shared_threshold": {k: confusion_stats(yt, pt, shared)[k] for k in ("sensitivity", "specificity", "ppv")},
             "per_view_threshold": {k: confusion_stats(yt, pt, t)[k] for k in ("sensitivity", "specificity", "ppv")},
         }
@@ -81,8 +86,8 @@ def view_thresholds(val_df: pd.DataFrame, val_p: np.ndarray, test_df: pd.DataFra
     pred = test_p >= per_view
     tp, fn = int((pred & (y == 1)).sum()), int((~pred & (y == 1)).sum())
     tn, fp = int((~pred & (y == 0)).sum()), int((pred & (y == 0)).sum())
-    out["overall_test_per_view_policy"] = {"sensitivity": round(tp / (tp + fn), 4),
-                                           "specificity": round(tn / (tn + fp), 4)}
+    ratio = lambda a, b: round(a / (a + b), 4) if a + b else None  # noqa: E731
+    out["overall_test_per_view_policy"] = {"sensitivity": ratio(tp, fn), "specificity": ratio(tn, fp)}
     return out
 
 
