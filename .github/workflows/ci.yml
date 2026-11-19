@@ -21,8 +21,7 @@ jobs:
             matplotlib pyyaml tqdm pytest -r services/inference/requirements.txt -e .
           .venv/bin/python -c "import torch, torchvision; print(torch.__version__, torchvision.__version__)"
       - name: Byte-compile every module (catches syntax errors in scripts the tests do not import)
-        run: .venv/bin/python -m compileall -q src scripts tests services
-      - run: .venv/bin/python -m pytest -q
+        run: make test   # compileall + pytest, the same target developers run locally
 
   web:
     runs-on: ubuntu-latest
