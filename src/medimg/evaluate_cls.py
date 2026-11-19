@@ -91,6 +91,25 @@ def view_thresholds(val_df: pd.DataFrame, val_p: np.ndarray, test_df: pd.DataFra
     return out
 
 
+PRED_COLUMNS = ["split", "patient_id", "view", "sex", "age", "label", "logit", "prob"]
+
+
+def prediction_frame(val_df: pd.DataFrame, val_logits: np.ndarray, test_df: pd.DataFrame, test_logits: np.ndarray,
+                     T: float) -> pd.DataFrame:
+    """One row per val and test image: the model's logit and temperature-scaled probability next to the label and the
+    attributes subgroup analyses need. Selective prediction, conformal sets and subgroup error rates are computed from
+    this file on any machine, without re-running the network."""
+    parts = []
+    for split, df, logits in (("val", val_df, val_logits), ("test", test_df, test_logits)):
+        parts.append(df.assign(split=split, logit=np.round(logits, 5), prob=np.round(sigmoid(logits / T), 5)))
+    return pd.concat(parts, ignore_index=True)[PRED_COLUMNS]
+
+
+def save_predictions(val_df, val_logits, test_df, test_logits, T) -> None:
+    prediction_frame(val_df, val_logits, test_df, test_logits, T).to_csv(
+        ROOT / "reports" / "predictions_rsna.csv", index=False)
+
+
 def plot_curves(y, p_raw, p_cal, bins):
     fpr, tpr, _ = roc_curve(y, p_cal)
     prec, rec, _ = precision_recall_curve(y, p_cal)
@@ -147,6 +166,7 @@ def main() -> None:
         **confusion_stats(test_y, p_cal, thr),
     }
 
+    save_predictions(val_df, val_logits, test_df, test_logits, T)
     vt = view_thresholds(val_df, sigmoid(val_logits / T), test_df, p_cal, thr)
     (ROOT / "reports" / "view_thresholds.json").write_text(json.dumps(vt, indent=2))
 

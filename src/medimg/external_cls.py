@@ -110,6 +110,17 @@ def evaluate(df: pd.DataFrame, probs: np.ndarray, thr: float, iters: int, seed: 
     return out
 
 
+def prediction_frame(df: pd.DataFrame, name: str, logits: np.ndarray, probs: np.ndarray) -> pd.DataFrame:
+    """Per-image predictions with the labels (1 / 0 / NaN uncertain) and the attributes subgroup analyses need, so
+    selective prediction and conformal coverage on CheXpert are computed later without re-running the network."""
+    out = pd.DataFrame({"set": name, "patient": df.patient, "view": df.view,
+                        "sex": df.get("Sex"), "age": df.get("Age"),
+                        "logit": np.round(logits, 5), "prob": np.round(probs, 5)})
+    for target in TARGETS:
+        out[target] = binary_labels(df[target]).values
+    return out
+
+
 def main(argv: list[str] | None = None) -> dict:
     ap = argparse.ArgumentParser(description="External validation on CheXpert")
     ap.add_argument("--root", type=Path, required=True, help="the CheXpert-v1.0-small folder (has valid.csv)")
@@ -127,7 +138,7 @@ def main(argv: list[str] | None = None) -> dict:
     report = {"model": "models/classifier.pt (RSNA-trained, unchanged)",
               "temperature": round(T, 4), "threshold": round(thr, 4),
               "note": "temperature and threshold fit on the RSNA validation split; nothing is refit on CheXpert"}
-    curves = {}
+    curves, preds = {}, []
     splits = [("valid_radiologist", "valid", None)]
     if args.train_sample:
         splits.append(("train_nlp_labels", "train", args.train_sample))
@@ -141,7 +152,9 @@ def main(argv: list[str] | None = None) -> dict:
         y = binary_labels(df[PRIMARY])
         keep = y.notna().values
         curves[name] = (y[keep].values.astype(int), probs[keep])
+        preds.append(prediction_frame(df, name, logits, probs))
         print(name, json.dumps(report[name][PRIMARY], indent=2))
+    pd.concat(preds, ignore_index=True).to_csv(args.out.parent / "predictions_chexpert.csv", index=False)
 
     rsna = json.loads((ROOT / "reports" / "metrics.json").read_text())
     report["rsna_internal_test"] = {k: rsna[k] for k in ("test_n", "auroc", "auroc_ci95", "sensitivity", "specificity")}

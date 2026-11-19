@@ -144,3 +144,28 @@ def test_predict_end_to_end_mask_on_input_grid(tmp_path):
     assert (out / "ct_spleen.png").exists()
     assert json.loads((out / "ct_spleen.json").read_text())["models"] == ["fold0.pt", "fold1.pt"]
     assert summary["fold_agreement_dice"] is not None
+
+
+def test_chexpert_prediction_frame_keeps_labels_and_uncertain_as_nan(fake_chexpert):
+    from medimg.external_cls import prediction_frame
+
+    df = load_split(fake_chexpert, "valid", None, 0)
+    logits = np.linspace(-2, 2, len(df))
+    out = prediction_frame(df, "valid_radiologist", logits, 1 / (1 + np.exp(-logits)))
+    assert len(out) == len(df) and set(out["set"]) == {"valid_radiologist"}
+    assert out["Pneumonia"].isna().sum() == 10  # uncertain stays NaN, so later analyses can drop it
+    assert out["Lung Opacity"].equals(binary_labels(df["Lung Opacity"]).reset_index(drop=True))
+    assert (np.diff(out.prob) > 0).all()
+
+
+def test_rsna_prediction_frame_has_both_splits_and_calibrated_probs():
+    from medimg.evaluate_cls import PRED_COLUMNS, prediction_frame
+
+    def split(n):
+        return pd.DataFrame({"patient_id": [f"p{i}" for i in range(n)], "view": "AP", "sex": "F", "age": 50,
+                             "label": [0, 1] * (n // 2)})
+
+    out = prediction_frame(split(4), np.zeros(4), split(6), np.array([2.0] * 6), T=2.0)
+    assert list(out.columns) == PRED_COLUMNS
+    assert out.split.value_counts().to_dict() == {"val": 4, "test": 6}
+    assert np.allclose(out[out.split == "test"].prob, 1 / (1 + np.exp(-1.0)), atol=1e-5)  # logit 2 / T 2
