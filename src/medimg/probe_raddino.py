@@ -6,6 +6,7 @@ regularisation strength is chosen on the val split by AUROC, and the test split 
 foundation model with a linear head matches or beats the fine-tuned CNN, that is the honest headline.
 
     python -m medimg.probe_raddino            # writes reports/raddino_probe.json and reports/predictions_raddino.csv
+    python -m medimg.probe_raddino --compare  # paired test vs the DenseNet -> reports/raddino_vs_densenet.json
 """
 from __future__ import annotations
 
@@ -100,5 +101,23 @@ def paired_comparison(a: np.ndarray, b: np.ndarray, y: np.ndarray, iters: int = 
             "diff_ci95": [round(lo, 4), round(hi, 4)], "significant": bool(lo > 0 or hi < 0)}
 
 
+def compare() -> dict:
+    """Join both models' test predictions on patient_id (RSNA has one image per patient) and run the paired test."""
+    dn = pd.read_csv(ROOT / "reports" / "predictions_rsna.csv").query("split == 'test'")
+    rd = pd.read_csv(ROOT / "reports" / "predictions_raddino.csv")
+    m = dn.merge(rd, on="patient_id", suffixes=("", "_rd"), validate="one_to_one")
+    if len(m) != len(dn) or len(m) != len(rd) or not (m["label"] == m["label_rd"]).all():
+        raise SystemExit(f"test sets differ: densenet {len(dn)}, raddino {len(rd)}, matched {len(m)}")
+    p = load_params()
+    r = paired_comparison(m["prob"].to_numpy(), m["prob_raddino"].to_numpy(), m["label"].to_numpy(),
+                          p["eval"]["bootstrap_iters"], p["seed"])
+    report = {"a": "densenet121 (fine-tuned)", "b": "rad-dino linear probe", "test_n": len(m), **r}
+    (ROOT / "reports" / "raddino_vs_densenet.json").write_text(json.dumps(report, indent=2))
+    print(json.dumps(report, indent=2))
+    return report
+
+
 if __name__ == "__main__":
-    main()
+    import sys
+
+    compare() if "--compare" in sys.argv else main()
