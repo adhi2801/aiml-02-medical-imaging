@@ -1,0 +1,20 @@
+{
+  "encoder": "microsoft/rad-dino",
+  "frozen": true,
+  "embedding_dim": 768,
+  "train_n": 18678,
+  "test_n": 4003,
+  "C_chosen_on_val": 0.001,
+  "val_auroc_by_C": {
+    "0.001": 0.8906,
+    "0.01": 0.8874,
+    "0.1": 0.8849,
+    "1.0": 0.8844,
+    "10.0": 0.8844
+  },
+  "test_auroc": 0.8898,
+  "test_auroc_ci95": [
+    0.8771,
+    0.9011
+  ]
+}

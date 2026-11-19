@@ -27,6 +27,7 @@ released classifier without retraining it: `python scripts/kaggle_push.py --eval
 | Sensitivity / Specificity @ val-selected threshold | **0.839 / 0.759** (PPV 0.50, NPV 0.94) |
 | ECE before → after temperature scaling | 0.073 → 0.071 (T = 1.29; the model was already close to calibrated) |
 | Grad-CAM pointing game (hit inside radiologist box) | 54 % of positive test images (mean IoU 0.24) |
+| Foundation-model baseline: frozen [RAD-DINO](https://huggingface.co/microsoft/rad-dino) encoder + logistic regression (C picked on val, test scored once; `src/medimg/probe_raddino.py`) | AUROC **0.890 (0.877 – 0.901)**. The CIs overlap the DenseNet's; the paired-bootstrap difference on the same images is pending the Kaggle re-run that saves per-image DenseNet predictions |
 | Shortcut check: AUROC from view / view+sex+age alone (no pixels) | 0.707 / 0.725, so the image adds about +0.16 AUROC over metadata |
 | Spleen Dice, **5-fold cross-validation over all 41 CTs** (each scored once by a model that never trained on it; fixed 300-epoch schedule, SWA weights, no checkpoint selection; largest-component post-processing) | **0.919 ± 0.092** (95 % CI 0.886 – 0.941), median 0.944, HD95 median 2.9 mm. 34 of 41 CTs ≥ 0.90; worst spleen_47 0.39 (see failure analysis below). The final-epoch weights score 0.917 ± 0.086. The earlier single 33/8 split gave 0.885 (final epoch) or 0.939 (best epoch, chosen on the same 8 CTs, so optimistic) |
 
