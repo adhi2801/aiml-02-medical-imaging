@@ -105,3 +105,18 @@ def test_report_end_to_end_on_synthetic_predictions(tmp_path, monkeypatch):
     assert t["conformal_marginal"]["coverage"] >= 0.85
     assert "sex=M" in t["conformal_by_group"] and "view=AP" in t["conformal_by_group"]
     assert (tmp_path / "reports" / "figures" / "risk_coverage.png").exists()
+
+
+def test_underdiagnosis_flags_a_real_gap_and_not_noise():
+    from medimg.eval.uncertainty import underdiagnosis
+
+    rng = np.random.default_rng(0)
+    n = 4000
+    g = rng.choice(["A", "B"], n)
+    y = (rng.random(n) < 0.3).astype(int)
+    # group B's positives score lower, so more of them fall under the threshold
+    p = np.where(y == 1, rng.normal(np.where(g == "B", 0.45, 0.65), 0.1), rng.normal(0.3, 0.1))
+    r = underdiagnosis(y, p, 0.5, g, iters=300)
+    assert r["best_served"] == "A" and r["gaps_vs_best"]["B"]["significant"]
+    same = underdiagnosis(y, np.where(y == 1, rng.normal(0.6, 0.1, n), 0.3), 0.5, g, iters=300)
+    assert not any(v["significant"] for v in same["gaps_vs_best"].values())

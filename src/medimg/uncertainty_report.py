@@ -47,6 +47,7 @@ def analyse(name: str, y: np.ndarray, p: np.ndarray, g: pd.DataFrame, thr: float
         "selective": {f"{c:.0%}": u.selective_stats(y, p, thr, cut) for c, cut in cutoffs.items()},
         "conformal_marginal": u.set_report(y, p, qhat),
         "conformal_by_group": {},
+        "underdiagnosis": {col: u.underdiagnosis(y, p, thr, g[col].values) for col in GROUPS},
     }
     for col in GROUPS:
         for val in sorted(g[col].unique()):
