@@ -120,3 +120,15 @@ def test_underdiagnosis_flags_a_real_gap_and_not_noise():
     assert r["best_served"] == "A" and r["gaps_vs_best"]["B"]["significant"]
     same = underdiagnosis(y, np.where(y == 1, rng.normal(0.6, 0.1, n), 0.3), 0.5, g, iters=300)
     assert not any(v["significant"] for v in same["gaps_vs_best"].values())
+
+
+def test_paired_comparison_detects_a_better_model_and_not_a_copy():
+    from medimg.probe_raddino import paired_comparison
+
+    rng = np.random.default_rng(0)
+    y = (rng.random(3000) < 0.3).astype(int)
+    weak = y * 0.5 + rng.normal(0, 0.5, len(y))
+    strong = y * 1.5 + rng.normal(0, 0.5, len(y))
+    r = paired_comparison(weak, strong, y, iters=300)
+    assert r["diff_b_minus_a"] > 0 and r["significant"]
+    assert not paired_comparison(weak, weak + 1e-9 * rng.normal(size=len(y)), y, iters=300)["significant"]

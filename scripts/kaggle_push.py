@@ -9,6 +9,8 @@ kernel version.
     python scripts/kaggle_push.py --status   # check the run
     python scripts/kaggle_push.py --eval-only  # re-evaluate models/classifier.pt, no training
     python scripts/kaggle_push.py --seg-cv     # spleen 5-fold cross-validation only
+    python scripts/kaggle_push.py --probe      # RAD-DINO linear probe, as its own kernel (runs beside the others)
+    python scripts/kaggle_push.py --probe --status   # status / log / fetch of the probe kernel
     python scripts/kaggle_push.py --log      # print the run log
     python scripts/kaggle_push.py --fetch    # download outputs to kaggle_out/
 
@@ -27,6 +29,7 @@ from kaggle.api.kaggle_api_extended import KaggleApi
 ROOT = Path(__file__).resolve().parents[1]
 SRC_SLUG = "aiml02-src"
 KERNEL_SLUG = "aiml02-train"
+PROBE_SLUG = "aiml02-probe"
 MODELS_SLUG = "aiml02-models"
 COMPETITION = "rsna-pneumonia-detection-challenge"
 CHEXPERT = "ashery/chexpert"  # CheXpert-v1.0-small, for external validation in --eval-only
@@ -75,6 +78,11 @@ def push_checkpoint(api, user, stage):
     push_dataset(api, user, MODELS_SLUG, "aiml02 released checkpoint", stage, "classifier.pt")
 
 
+def kernel_slug(mode: str) -> str:
+    """The probe gets its own kernel so it can run while the main kernel is busy."""
+    return PROBE_SLUG if mode == "probe" else KERNEL_SLUG
+
+
 def push_kernel(api, user, stage, mode="full"):
     nb = stage / "kaggle_train.ipynb"
     text = (ROOT / "notebooks" / "kaggle_train.ipynb").read_text(encoding="utf-8")
@@ -83,7 +91,7 @@ def push_kernel(api, user, stage, mode="full"):
         raise SystemExit("notebook has no AIML02_MODE cell")
     nb.write_text(text.replace(marker, f"os.environ['AIML02_MODE'] = '{mode}'"), encoding="utf-8")
     (stage / "kernel-metadata.json").write_text(json.dumps({
-        "id": f"{user}/{KERNEL_SLUG}", "title": KERNEL_SLUG, "code_file": nb.name,
+        "id": f"{user}/{kernel_slug(mode)}", "title": kernel_slug(mode), "code_file": nb.name,
         "language": "python", "kernel_type": "notebook", "is_private": True,
         "enable_gpu": True, "enable_internet": True,
         "dataset_sources": [f"{user}/{SRC_SLUG}"] + ([f"{user}/{MODELS_SLUG}", CHEXPERT] if mode == "eval_only" else []),
@@ -93,16 +101,16 @@ def push_kernel(api, user, stage, mode="full"):
     err = getattr(resp, "error", None)
     if err:  # kernels_push reports failures in the response instead of raising
         raise SystemExit(f"kernel push failed: {err}")
-    print(f"kernel started: {getattr(resp, 'url', None) or f'https://www.kaggle.com/code/{user}/{KERNEL_SLUG}'}")
+    print(f"kernel started: {getattr(resp, 'url', None) or f'https://www.kaggle.com/code/{user}/{kernel_slug(mode)}'}")
 
 
-def fetch_log(api, user):
+def fetch_log(api, user, slug=KERNEL_SLUG):
     """Only the run log. kernels_output pages through every output file before writing the log."""
     from kagglesdk.kernels.types.kernels_api_service import ApiListKernelSessionOutputRequest
 
     with api.build_kaggle_client() as kaggle:
         request = ApiListKernelSessionOutputRequest()
-        request.user_name, request.kernel_slug, request.page_size = user, KERNEL_SLUG, 1
+        request.user_name, request.kernel_slug, request.page_size = user, slug, 1
         log = kaggle.kernels.kernels_api_client.list_kernel_session_output(request).log or "[]"
     lines = [e.get("data", "") for e in json.loads(log)]
     return "".join(lines)
@@ -119,19 +127,21 @@ def main():
                             "pack export (no training)")
     modes.add_argument("--seg-cv", action="store_true",
                        help="only the spleen 5-fold cross-validation (medimg.seg.cv_seg); no classifier")
+    ap.add_argument("--probe", action="store_true", help="RAD-DINO linear probe in its own kernel")
     args = ap.parse_args()
 
     api = KaggleApi()
     api.authenticate()
     user = api.get_config_value("username")
-    kernel = f"{user}/{KERNEL_SLUG}"
+    slug = PROBE_SLUG if args.probe else KERNEL_SLUG
+    kernel = f"{user}/{slug}"
 
     if args.status:
         print(api.kernels_status(kernel))
     elif args.log:
-        print(fetch_log(api, user))
+        print(fetch_log(api, user, slug))
     elif args.fetch:
-        out = ROOT / "kaggle_out"
+        out = ROOT / ("kaggle_out_probe" if args.probe else "kaggle_out")
         api.kernels_output(kernel, path=str(out))
         print(f"outputs in {out}")
     else:
@@ -139,7 +149,7 @@ def main():
             push_source(api, user, Path(src))
             if args.eval_only:
                 push_checkpoint(api, user, Path(mdl))
-            mode = "eval_only" if args.eval_only else "seg_cv" if args.seg_cv else "full"
+            mode = "probe" if args.probe else "eval_only" if args.eval_only else "seg_cv" if args.seg_cv else "full"
             push_kernel(api, user, Path(ker), mode)
 
 
