@@ -23,7 +23,7 @@ from medimg.explain.gradcam import gradcam, overlay
 from medimg.models.classifier import load_checkpoint
 
 HERE = Path(__file__).resolve().parent
-MODEL_REPO = os.environ.get("MODEL_REPO", "adhi2801/aiml02-cxr-densenet121")
+MODEL_REPO = os.environ.get("MODEL_REPO", "Adhi2801/aiml02-cxr-densenet121")
 DISCLAIMER = ("**Education and research only. Not a medical device, not for clinical use.** The output is a suggestion "
               "that a qualified radiologist must review.")
 
